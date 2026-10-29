@@ -29,6 +29,7 @@ Converta arquivos `.txt` em MP3 ou WAV com normalização de números, siglas e 
 | Comparar versões e avaliar amostras PT/ES | [Guia de avaliação](avaliacao/GUIA.md) |
 | Entender as licenças do código e do modelo | [Licença](#licenca) e [componentes de terceiros](THIRD_PARTY_NOTICES.md) |
 | Consultar as três entregas | [Histórico de alterações](CHANGELOG.md) |
+| Ver sugestões e próximas melhorias planejadas | [Roadmap do projeto](docs/ROADMAP.md) |
 
 <details>
 <summary><strong>Explorar a documentação</strong></summary>
