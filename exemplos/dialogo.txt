@@ -1,0 +1,5 @@
+[Narrador|pt]: A equipe inicia a revisão do relatório.
+
+[Luis|pt]: Vamos conferir os dados antes de continuar.
+
+[Alma|es]: De acuerdo. Ahora podemos comparar los resultados.

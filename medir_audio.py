@@ -2,7 +2,7 @@
 """Mede pausas (silêncios) e volume (dBFS) por trecho de fala de um áudio gerado.
 
 Uso:
-    python medir_audio.py saida/teste_expressividade.wav
+    python medir_audio.py saida/expressividade.wav
     python medir_audio.py saida/x.wav --min-pausa-ms 250 --limiar-db -45
 
 Imprime a linha do tempo: cada trecho de fala (início, duração, dBFS RMS)

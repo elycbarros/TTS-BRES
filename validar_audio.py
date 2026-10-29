@@ -2,9 +2,9 @@
 """Valida objetivamente o áudio gerado: transcreve com Whisper e compara com o texto original.
 
 Uso:
-    python validar_audio.py saida/teste1.mp3 teste1.txt            # idioma detectado
-    python validar_audio.py saida/teste_es.mp3 teste_es.txt --idioma es
-    python validar_audio.py saida/teste1.mp3 teste1.txt --modelo openai/whisper-small
+    python validar_audio.py saida/narracao_pt.mp3 exemplos/narracao_pt.txt            # idioma detectado
+    python validar_audio.py saida/narracao_es.mp3 exemplos/narracao_es.txt --idioma es
+    python validar_audio.py saida/narracao_pt.mp3 exemplos/narracao_pt.txt --modelo openai/whisper-small
 
 Mostra a taxa de erro de palavras (WER) e as divergências (palavras trocadas,
 omitidas ou inseridas, ex.: "ponto"), apontando onde a pronúncia falhou.

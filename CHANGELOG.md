@@ -4,6 +4,19 @@
 
 As entradas abaixo consolidam as três entregas locais. Não representam uma versão publicada nem garantem que todas as alterações já tenham sido incluídas em um commit.
 
+### Arquivos locais e privacidade
+
+- Regras de ignore ampliadas para roteiros locais, referências de voz, credenciais, modelos e artefatos gerados.
+- Textos de uso local da raiz retirados do índice, com cópias preservadas no disco.
+- Exemplos públicos neutros em `exemplos/` e comandos da documentação atualizados.
+- Histórico anterior preservado; a remoção no estado atual não apaga versões já publicadas.
+
+### Licenciamento
+
+- Licença MIT para o código e a documentação originais, com copyright de 2026 de Ely do Carmo Barros.
+- Avisos separados para XTTS v2, saídas de áudio e componentes de terceiros.
+- Documentação esclarecendo que a MIT não amplia as permissões da CPML do modelo.
+
 ### Primeira entrega — validação e preparação
 
 - Validação antecipada de parâmetros, arquivos, texto sem fala, formatos e idiomas de personagem.

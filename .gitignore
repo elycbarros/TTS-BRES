@@ -1,12 +1,79 @@
-# macOS / External Volume AppleDouble files
-._*
+# macOS e metadados de volumes externos
 .DS_Store
+._*
+.Spotlight-V100/
+.Trashes/
 
-# Python
-__pycache__/
-*.py[cod]
+# Ambientes, caches e arquivos gerados pelo Python
 .venv/
 venv/
+env/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.numba_cache/
+.cache/
+.coverage
+htmlcov/
+.ipynb_checkpoints/
+build/
+dist/
+*.egg-info/
 
-# Generated audio output
-saida/
+# Configuração local, credenciais e chaves
+.env
+.env.*
+!.env.example
+!.env.sample
+.git-credentials
+.netrc
+.pypirc
+.ssh/
+.aws/
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Diretórios privados: roteiros, gravações e glossários do usuário
+/local/
+/privado/
+/referencias/
+/entradas/
+/teste*.txt
+/glossario.json
+/glossario.txt
+*.glossario.json
+*.glossario.txt
+
+# Áudios, modelos, cache de síntese e relatórios de execução
+/saida/
+/outputs/
+/work/
+*.wav
+*.mp3
+*.flac
+*.m4a
+*.ogg
+*.aac
+*.mp4
+*.pth
+*.pt
+*.onnx
+*.safetensors
+*.ckpt
+*.segmentos/
+*.blocos.json
+*.validacao.json
+*.metricas.json
+.ttsbr-*
+*.log
+
+# Preferências locais de editores e arquivos temporários
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

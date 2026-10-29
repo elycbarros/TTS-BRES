@@ -168,6 +168,12 @@ A [medição inicial](../avaliacao/resultado_inicial.json), realizada com XTTS e
 - Controle confiável de emoção, interpretação ou sotaque.
 - Garantia de reprodução idêntica entre máquinas e execuções.
 
+## Licenciamento
+
+O código e a documentação originais do TTSBR são disponibilizados sob a [licença MIT](../LICENSE). Dependências, modelos e materiais de terceiros permanecem sujeitos às respectivas condições.
+
+O **XTTS v2 e suas saídas** seguem a [Coqui Public Model License](https://huggingface.co/coqui/XTTS-v2/blob/main/LICENSE.txt), que permite uso não comercial nos termos da licença. A MIT do projeto não autoriza uso comercial do modelo nem dos áudios gerados por ele. Consulte os [avisos de terceiros](../THIRD_PARTY_NOTICES.md) antes de usar ou redistribuir esses componentes e saídas.
+
 ## Instalação e execução local
 
 A síntese é executada localmente. A instalação das dependências e o primeiro download dos modelos requerem acesso à rede; o uso posterior depende da disponibilidade dos modelos e do ambiente local. A validação com Whisper pode exigir um download separado.

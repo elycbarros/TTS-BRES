@@ -78,6 +78,10 @@ Copie a tabela para registrar cada avaliação. Deixe as notas em branco até ou
 
 Registre também **versão, dispositivo, locutor, segmento, tempo e observação**. Escala: 1 = problema grave; 3 = utilizável com ressalvas; 5 = sem problema perceptível na amostra. Uma avaliação individual não equivale a uma medida padronizada de opinião média.
 
+## Licença dos áudios de avaliação
+
+Os áudios produzidos pelo corpus com XTTS v2 estão sujeitos à [Coqui Public Model License](https://huggingface.co/coqui/XTTS-v2/blob/main/LICENSE.txt), e não à MIT do código original. Ao compartilhar as amostras, inclua a referência aos termos aplicáveis. Consulte os [avisos de terceiros](../THIRD_PARTY_NOTICES.md).
+
 ## Limites das medições
 
 - O WER inclui erros do Whisper e diferenças de escrita. A referência é o texto enviado à síntese; pronúncias fonéticas do glossário podem divergir da ortografia usada pelo ASR.

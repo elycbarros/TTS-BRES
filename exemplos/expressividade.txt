@@ -1,0 +1,5 @@
+Observe os resultados [pausa:800ms] antes de continuar.
+
+[enfase] Este é o ponto principal.
+
+[sussurro] A próxima etapa começa agora.

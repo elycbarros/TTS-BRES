@@ -26,6 +26,7 @@ Converta arquivos `.txt` em MP3 ou WAV com normalização de números, siglas e 
 | Consultar argumentos, códigos de saída e campos JSON | [Referência de comandos e arquivos](docs/REFERENCIA.md) |
 | Entender persistência, montagem e recuperação | [Arquitetura do pipeline](docs/ARQUITETURA.md) |
 | Comparar versões e avaliar amostras PT/ES | [Guia de avaliação](avaliacao/GUIA.md) |
+| Entender as licenças do código e do modelo | [Licença](#licenca) e [componentes de terceiros](THIRD_PARTY_NOTICES.md) |
 | Consultar as três entregas | [Histórico de alterações](CHANGELOG.md) |
 
 <details>
@@ -43,6 +44,8 @@ Converta arquivos `.txt` em MP3 ou WAV com normalização de números, siglas e 
 - [Conferir o resultado](#conferencia)
 - [Testes](#testes)
 - [Limitações e solução de problemas](#problemas)
+- [Arquivos locais e privacidade](#arquivos-locais)
+- [Licença e componentes de terceiros](#licenca)
 - [Estrutura do projeto](#estrutura)
 
 </details>
@@ -97,34 +100,34 @@ python -m pip install transformers librosa soundfile
 Gere um áudio a partir de um dos textos de exemplo:
 
 ```bash
-python tts.py teste1.txt --saida saida/teste1
+python tts.py exemplos/narracao_pt.txt --saida saida/narracao_pt
 ```
 
 Esse comando detecta o idioma por parágrafo e grava:
 
 | Arquivo | Conteúdo |
 |---|---|
-| `saida/teste1.mp3` | Áudio final. |
-| `saida/teste1.segmentos/` | Cache persistente de WAVs e metadados para retomada. |
-| `saida/teste1.blocos.json` | Estimativa de duração, divisão em blocos, texto de cada bloco e `texto_falado` após normalização, remoção de tags e limpeza para síntese. |
+| `saida/narracao_pt.mp3` | Áudio final. |
+| `saida/narracao_pt.segmentos/` | Cache persistente de WAVs e metadados para retomada. |
+| `saida/narracao_pt.blocos.json` | Estimativa de duração, divisão em blocos, texto de cada bloco e `texto_falado` após normalização, remoção de tags e limpeza para síntese. |
 
 A pasta de saída é criada automaticamente. Arquivos com o mesmo nome podem ser sobrescritos. Pontos no nome base são preservados: `--saida saida/aula.v2` gera `aula.v2.mp3` e `aula.v2.blocos.json`.
 
 ```bash
 # MP3 e WAV na mesma execução
-python tts.py teste1.txt --saida saida/teste1 --wav
+python tts.py exemplos/narracao_pt.txt --saida saida/narracao_pt --wav
 
 # Apenas WAV
-python tts.py teste1.txt --saida saida/teste1 --formatos wav
+python tts.py exemplos/narracao_pt.txt --saida saida/narracao_pt --formatos wav
 
 # Espanhol com voz específica
-python tts.py teste_es.txt --idioma es --locutor "Xavier Hayasaka" --saida saida/teste_es
+python tts.py exemplos/narracao_es.txt --idioma es --locutor "Xavier Hayasaka" --saida saida/narracao_es
 
 # Voz de referência para clonagem
-python tts.py teste1.txt --voz referencia.wav --saida saida/voz_referencia
+python tts.py exemplos/narracao_pt.txt --voz referencia.wav --saida saida/voz_referencia
 
 # Execução em CPU
-python tts.py teste1.txt --dispositivo cpu --saida saida/teste_cpu
+python tts.py exemplos/narracao_pt.txt --dispositivo cpu --saida saida/teste_cpu
 ```
 
 Use arquivos de texto em UTF-8. Separe os parágrafos com uma linha em branco. Para consultar a ajuda completa:
@@ -140,13 +143,13 @@ python tts.py --help
 Cada trecho de fala é salvo em `<saida>.segmentos/` assim que sua síntese termina. Se a execução for interrompida, repita o comando com o mesmo caminho de saída:
 
 ```bash
-python tts.py teste1.txt --saida saida/teste1 --wav
+python tts.py exemplos/narracao_pt.txt --saida saida/narracao_pt --wav
 
 # Após uma interrupção, execute novamente o mesmo comando
-python tts.py teste1.txt --saida saida/teste1 --wav
+python tts.py exemplos/narracao_pt.txt --saida saida/narracao_pt --wav
 
 # Para gerar novas versões de todos os trechos
-python tts.py teste1.txt --saida saida/teste1 --wav --refazer
+python tts.py exemplos/narracao_pt.txt --saida saida/narracao_pt --wav --refazer
 ```
 
 A retomada é automática. Cada segmento tem uma chave calculada a partir do texto enviado à síntese, idioma, voz ou conteúdo da referência, velocidade, volume, corte de silêncio, dispositivo solicitado, versão do pipeline e versões das dependências. Antes de reutilizar o WAV, o programa verifica seu formato e hash SHA-256. Segmentos ausentes, incompletos ou corrompidos são gerados novamente.
@@ -267,7 +270,7 @@ GPU = placa gráfica
 ```
 
 ```bash
-python tts.py teste1.txt --glossario meu_glossario.txt --saida saida/teste1
+python tts.py exemplos/narracao_pt.txt --glossario meu_glossario.txt --saida saida/narracao_pt
 ```
 
 Veja também [glossario.txt.exemplo](glossario.txt.exemplo).
@@ -350,11 +353,11 @@ Para comparar os modos de validação, argumentos, códigos de saída e campos d
 ### Validar a fala com Whisper
 
 ```bash
-python validar_audio.py saida/teste1.mp3 teste1.txt
-python validar_audio.py saida/teste_es.mp3 teste_es.txt --idioma es
+python validar_audio.py saida/narracao_pt.mp3 exemplos/narracao_pt.txt
+python validar_audio.py saida/narracao_es.mp3 exemplos/narracao_es.txt --idioma es
 
 # Aceitar até 15% de erro de palavras
-python validar_audio.py saida/teste1.mp3 teste1.txt --limite-wer 0.15
+python validar_audio.py saida/narracao_pt.mp3 exemplos/narracao_pt.txt --limite-wer 0.15
 ```
 
 A ferramenta transcreve o áudio com `openai/whisper-small` e compara a transcrição com o texto de referência. O primeiro uso pode baixar o modelo Whisper. É possível escolher outro modelo com `--modelo`.
@@ -377,13 +380,13 @@ A comparação ignora acentos, pontuação, rótulos de personagem e tags, e exp
 Use o manifesto de uma síntese concluída:
 
 ```bash
-python validar_audio.py --manifesto saida/teste1.blocos.json
+python validar_audio.py --manifesto saida/narracao_pt.blocos.json
 
 # Coletar métricas acústicas sem carregar Whisper
-python validar_audio.py --manifesto saida/teste1.blocos.json --somente-metricas
+python validar_audio.py --manifesto saida/narracao_pt.blocos.json --somente-metricas
 
 # Escolher o relatório e o limite de WER por trecho
-python validar_audio.py --manifesto saida/teste1.blocos.json --relatorio saida/revisao.json --limite-wer 0.15
+python validar_audio.py --manifesto saida/narracao_pt.blocos.json --relatorio saida/revisao.json --limite-wer 0.15
 ```
 
 Cada WAV do cache é transcrito no idioma registrado no manifesto. O relatório JSON inclui transcrição, divergências, WER por segmento e por idioma, WER global ponderado, duração, RMS, pico e fração de amostras próximas da saturação. O Whisper é carregado uma vez e reutilizado entre os trechos.
@@ -408,11 +411,11 @@ WER e métricas acústicas ajudam a localizar problemas; naturalidade, sotaque e
 ### Medir pausas e volume
 
 ```bash
-python tts.py teste_expressividade.txt --saida saida/teste_expressividade --wav
-python medir_audio.py saida/teste_expressividade.wav
+python tts.py exemplos/expressividade.txt --saida saida/expressividade --wav
+python medir_audio.py saida/expressividade.wav
 
 # Ajustar a detecção de silêncio
-python medir_audio.py saida/teste_expressividade.wav --min-pausa-ms 250 --limiar-db -45
+python medir_audio.py saida/expressividade.wav --min-pausa-ms 250 --limiar-db -45
 ```
 
 A medição lista início, duração e volume RMS dos trechos de fala, além da duração das pausas detectadas. Os resultados dependem do limiar e da duração mínima escolhidos.
@@ -463,6 +466,34 @@ Textos com mais de 450 palavras são agrupados em blocos com alvo de até 150 pa
 
 O pipeline remove pontos e outras marcas finais de cada segmento para reduzir a leitura literal da pontuação. As pausas são calculadas antes dessa limpeza. A escolha de voz e a qualidade do sotaque devem ser avaliadas por audição.
 
+<a id="arquivos-locais"></a>
+
+## 🗂️ Arquivos locais e privacidade
+
+Os roteiros públicos estão em `exemplos/`. Para seus próprios textos, glossários, referências de voz e relatórios, use `local/`, `entradas/`, `referencias/` ou `privado/`, diretórios ignorados pelo Git.
+
+```bash
+mkdir -p local
+# Salve seu roteiro como local/roteiro.txt antes de executar:
+python tts.py local/roteiro.txt --saida saida/roteiro --wav
+```
+
+O `.gitignore` também cobre saídas de áudio, caches, modelos, arquivos `.env`, chaves em formatos comuns e preferências de editores. Glossários locais da raiz e os associados a textos (`*.glossario.txt` / `*.glossario.json`) ficam fora do versionamento. O modelo público `glossario.txt.exemplo` permanece disponível.
+
+**O Git não usa o `.gitignore` como detector de dados pessoais.** Arquivos já rastreados precisam ser retirados do índice, e dados publicados em commits anteriores continuam no histórico. Antes de publicar, confira `git status` e `git diff --cached`. Não use `git add -f` em arquivos privados.
+
+Manifestos e relatórios podem conter o roteiro, transcrições, nomes de vozes e caminhos absolutos da máquina. Mantenha-os nas pastas ignoradas. O resultado agregado de referência em `avaliacao/resultado_inicial.json` é um artefato público revisado, sem caminhos locais, credenciais ou gravações pessoais.
+
+<a id="licenca"></a>
+
+## 📄 Licença e componentes de terceiros
+
+O código e a documentação originais do TTSBR são disponibilizados sob a [licença MIT](LICENSE), com copyright de 2026 de Ely do Carmo Barros. A MIT permite reutilização, modificação e distribuição, inclusive comercial, do código original, preservados os avisos exigidos.
+
+**O XTTS v2 e os áudios gerados por ele seguem a [Coqui Public Model License](https://huggingface.co/coqui/XTTS-v2/blob/main/LICENSE.txt), que restringe o uso a finalidades não comerciais conforme seus termos.** A licença MIT deste repositório não amplia essas permissões nem relicencia o modelo ou suas saídas.
+
+Dependências, modelos e conteúdos de terceiros permanecem sujeitos às respectivas licenças. Consulte os [avisos de terceiros](THIRD_PARTY_NOTICES.md), incluindo a orientação de acompanhar áudios compartilhados com a referência à licença aplicável. Os scripts definem `COQUI_TOS_AGREED=1`; isso não substitui a leitura dos termos nem concede direitos adicionais.
+
 <a id="estrutura"></a>
 
 ## 📁 Estrutura do projeto
@@ -481,10 +512,12 @@ TTSBR/
 ├── medir_audio.py           # pausas e volume RMS
 ├── comparar_vozes.py        # amostras de vozes embutidas
 ├── docs/                    # referência, arquitetura e banner
+├── LICENSE                  # MIT para código e documentação originais
+├── THIRD_PARTY_NOTICES.md    # condições do modelo e de terceiros
 ├── CHANGELOG.md             # histórico das três entregas
 ├── requirements.txt         # dependências da síntese
 ├── glossario.txt.exemplo    # modelo de glossário
-├── teste*.txt               # textos de exemplo
+├── exemplos/                # roteiros públicos e neutros
 ├── tests/                   # testes de unidade e integração simulada
 └── saida/                   # saídas dos exemplos; ignorada pelo Git
 ```
