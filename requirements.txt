@@ -1,0 +1,6 @@
+coqui-tts[codec]
+torch
+torchaudio
+pydub
+numpy
+imageio-ffmpeg

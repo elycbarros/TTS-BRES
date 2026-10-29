@@ -1,0 +1,12 @@
+# Glossário de exemplo do projeto TTSBR
+# Formato simples: Termo Original = Pronúncia Fonética
+# Linhas iniciadas com '#' são comentários ignorados.
+
+PostgreSQL = pós-gre-ésse-quê-éle
+FastAPI = fást-á-pê-í
+Kubernetes = cubernetes
+PyTorch = paitórtch
+TensorFlow = tensorflou
+GitHub = guiti-rábe
+Docker = dóquer
+

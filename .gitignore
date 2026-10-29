@@ -1,0 +1,12 @@
+# macOS / External Volume AppleDouble files
+._*
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Generated audio output
+saida/
