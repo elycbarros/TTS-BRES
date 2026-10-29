@@ -25,13 +25,15 @@ def argumentos_sintese(pedido):
     cfg = pedido['configuracao']
     args = [pedido['entrada'], '--saida', cfg['saida'], '--idioma', cfg.get('idioma', 'auto'),
             '--formatos', cfg.get('formatos', 'mp3,wav')]
-    for nome in ('locutor', 'voz', 'glossario', 'velocidade', 'volume_alvo', 'dispositivo',
+    for nome in ('locutor', 'voz', 'vozes_personagens', 'vozes_tons', 'glossario',
+                 'trilha', 'volume_trilha', 'refazer_segmentos',
+                 'velocidade', 'volume_alvo', 'lufs', 'taxa_amostragem', 'max_tentativas', 'dispositivo',
                  'pausa_frase', 'pausa_reticencias', 'pausa_ponto_virgula', 'pausa_virgula',
                  'pausa_paragrafo', 'pausa_bloco'):
         valor = cfg.get(nome)
         if valor is not None and str(valor).strip():
             args.extend(['--' + nome.replace('_', '-'), str(valor)])
-    for nome in ('sem_normalizar', 'sem_corte_silencio', 'refazer'):
+    for nome in ('sem_normalizar', 'sem_corte_silencio', 'limpar_referencia', 'refazer'):
         if cfg.get(nome):
             args.append('--' + nome.replace('_', '-'))
     if pedido['modo'] == 'analisar':

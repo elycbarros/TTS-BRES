@@ -162,6 +162,81 @@ class TestPersistencia(unittest.TestCase):
         self.assertGreater((self.pasta / 'aula.v2.mp3').stat().st_size, 100)
         self.assertEqual(self.manifesto()['estado'], 'concluido')
 
+    def test_masterizacao_lufs_e_taxa_amostragem_com_ffmpeg_real(self):
+        self.executar('--formatos', 'mp3,wav', '--lufs', '-16', '--taxa-amostragem', '44100')
+        self.assertGreater((self.pasta / 'aula.v2.mp3').stat().st_size, 100)
+        with wave.open(str(self.pasta / 'aula.v2.wav'), 'rb') as audio:
+            self.assertEqual(audio.getframerate(), 44100)
+
+    def test_multiplas_vozes_clonadas_por_personagem_e_cache_seletivo(self):
+        voz_a = self.pasta / 'voz_a.wav'
+        voz_b = self.pasta / 'voz_b.wav'
+        with AudioSegment.silent(100).export(str(voz_a), format='wav'):
+            pass
+        with AudioSegment.silent(150).export(str(voz_b), format='wav'):
+            pass
+        self.entrada.write_text('[Luis]: Fala um.\n\n[voz_b.wav|es]: Habla dos.', encoding='utf-8')
+        self.executar('--vozes-personagens', f'luis={voz_a}')
+        self.assertEqual(self.modelo.tts.call_count, 2)
+        chamadas = self.modelo.tts.call_args_list
+        self.assertEqual(Path(chamadas[0].kwargs['speaker_wav']).resolve(), voz_a.resolve())
+        self.assertEqual(Path(chamadas[1].kwargs['speaker_wav']).resolve(), voz_b.resolve())
+        # Alterar apenas a voz_b deve invalidar apenas o segundo segmento
+        self.modelo.tts.reset_mock()
+        with AudioSegment.silent(250).export(str(voz_b), format='wav'):
+            pass
+        self.executar('--vozes-personagens', f'luis={voz_a}')
+        self.assertEqual(self.modelo.tts.call_count, 1)
+        self.assertEqual([s['reutilizado'] for s in self.manifesto()['segmentos']], [True, False])
+
+    def test_auto_retry_contra_alucinacao_e_silencio(self):
+        # 1ª chamada: alucinação (6 segundos para texto curto); 2ª chamada: áudio normal de 0.1s
+        alucinacao = np.sin(np.arange(24000 * 6) * .1) * .1
+        self.entrada.write_text('Olá.', encoding='utf-8')
+        self.modelo.tts.side_effect = [alucinacao, self.sinal]
+        self.executar('--sem-corte-silencio')
+        self.assertEqual(self.modelo.tts.call_count, 2)
+        self.assertAlmostEqual(self.manifesto()['segmentos'][0]['duracao_s'], 0.1)
+
+    def test_higienizar_referencia_e_condicionamento_por_tom(self):
+        voz_base = self.pasta / 'voz_ruidosa.wav'
+        voz_enfase = self.pasta / 'voz_enfatica.wav'
+        sinal_1 = (np.sin(np.arange(12000) * .1) * 4000).astype('<i2')
+        sinal_2 = (np.sin(np.arange(16000) * .2) * 5000).astype('<i2')
+        with AudioSegment(sinal_1.tobytes(), frame_rate=ap.SR, sample_width=2, channels=1).export(str(voz_base), format='wav'):
+            pass
+        with AudioSegment(sinal_2.tobytes(), frame_rate=ap.SR, sample_width=2, channels=1).export(str(voz_enfase), format='wav'):
+            pass
+        self.entrada.write_text('Fala normal. [tom:enfatico] Fala com ênfase real.', encoding='utf-8')
+        self.executar('--voz', str(voz_base), '--vozes-tons', f'enfatico={voz_enfase}', '--limpar-referencia')
+        self.assertEqual(self.modelo.tts.call_count, 2)
+        chamadas = self.modelo.tts.call_args_list
+        wav_usado_1 = Path(chamadas[0].kwargs['speaker_wav'])
+        wav_usado_2 = Path(chamadas[1].kwargs['speaker_wav'])
+        self.assertTrue(wav_usado_1.name.endswith('.limpo.wav'))
+        self.assertTrue(wav_usado_2.name.endswith('.limpo.wav'))
+        self.assertNotEqual(wav_usado_1, wav_usado_2)
+        self.assertAlmostEqual(chamadas[1].kwargs['speed'], round(1.1 * 1.05, 4))
+
+    def test_regeneracao_seletiva_de_segmento(self):
+        self.entrada.write_text('Primeira fala. Segunda fala. Terceira fala.', encoding='utf-8')
+        self.executar()
+        self.assertEqual(self.modelo.tts.call_count, 3)
+        self.modelo.tts.reset_mock()
+        self.executar('--refazer-segmentos', '2')
+        self.assertEqual(self.modelo.tts.call_count, 1)
+        self.assertEqual(self.modelo.tts.call_args.kwargs['text'], 'Segunda fala')
+        self.assertEqual([s['reutilizado'] for s in self.manifesto()['segmentos']], [True, False, True])
+
+    def test_trilha_bgm_com_autoducking_ffmpeg_real(self):
+        trilha = self.pasta / 'musica.wav'
+        sinal_bg = (np.sin(np.arange(24000) * .05) * 3000).astype('<i2')
+        with AudioSegment(sinal_bg.tobytes(), frame_rate=ap.SR, sample_width=2, channels=1).export(str(trilha), format='wav'):
+            pass
+        self.executar('--formatos', 'mp3,wav', '--trilha', str(trilha), '--volume-trilha', '-16')
+        self.assertGreater((self.pasta / 'aula.v2.mp3').stat().st_size, 100)
+        self.assertGreater((self.pasta / 'aula.v2.wav').stat().st_size, 100)
+
 
 if __name__ == '__main__':
     unittest.main()

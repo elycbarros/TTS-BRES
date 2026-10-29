@@ -26,11 +26,15 @@ A tabela completa de opções de síntese e pausas está no [README](../README.m
 
 - `--analisar` prepara e imprime os segmentos, sem carregar XTTS nem criar manifesto, cache ou áudio. As validações da entrada continuam ativas.
 - `--saida` é o nome **base**. `aula.v2` gera `aula.v2.mp3`; `aula.mp3` gera `aula.mp3.mp3` se MP3 estiver selecionado.
-- Formatos são convertidos para minúsculas e duplicatas são removidas. Listas com itens vazios, como `mp3,`, são rejeitadas.
-- `--wav` acrescenta WAV à lista; com `--formatos wav`, ele não acrescenta MP3.
-- `--refazer` ignora o cache válido e sobrescreve os segmentos gerados. Não elimina entradas antigas que deixaram de ser usadas pelo texto.
+- Formatos são convertidos para minúsculas e duplicatas são removidas (`mp3`, `wav`, `srt`, `vtt`). Listas com itens vazios, como `mp3,`, são rejeitadas.
+- `--wav`, `--srt` e `--vtt` acrescentam respectivamente `.wav`, `.srt` e `.vtt` à lista; com `--formatos wav`, eles não acrescentam MP3.
+- `--refazer` ignora o cache válido e sobrescreve todos os segmentos gerados. `--refazer-segmentos 2,5` regera apenas os IDs indicados e preserva os demais do cache.
+- `--lufs` aplica normalização EBU R128 (`loudnorm`) no áudio final (`-70` a `-5`, ex.: `-16` para podcasts); `--taxa-amostragem` seleciona a frequência final (`24000`, `44100` ou `48000` Hz).
+- `--trilha` *(beta)* mistura uma trilha de fundo em loop com *auto-ducking* (`sidechaincompress`) e ganho base `--volume-trilha` (padrão `-18.0` dB).
+- `--limpar-referencia` *(beta)* filtra áudios de referência com `highpass`, `lowpass`, `afftdn` e `loudnorm` antes da clonagem.
+- `--max-tentativas` (padrão `2`) repete a síntese do segmento quando detecta silêncio total ou alucinação de duração excessiva.
 - `--sem-normalizar` desativa a normalização fonética. As tags, personagens, divisão de trechos e pausas continuam ativos.
-- A ordem de voz é: gravação em `--voz`, personagem explícito, `--locutor`, voz padrão do idioma.
+- A ordem de prioridade de voz por trecho é: referência de tom (`[tom:...]` / `--vozes-tons`), referência de personagem (`--vozes-personagens` / `[arquivo.wav]:`), gravação global em `--voz`, personagem embutido explícito, `--locutor`, voz padrão do idioma.
 - Duração recomendada da referência: 6 a 30 segundos. A CLI verifica a existência do arquivo; não valida previamente sua duração nem a qualidade da gravação.
 
 Entradas inválidas detectadas pela CLI encerram com código `2`. Falhas de síntese, disco ou FFmpeg também podem encerrar com erro; o cache já concluído permite uma nova tentativa. Nem todas as falhas de bibliotecas são convertidas em mensagens curtas.
@@ -105,11 +109,12 @@ Novos manifestos registram caminhos absolutos para os WAVs. Ao mover o projeto, 
 
 Os campos acústicos são `duracao_s`, `rms_dbfs`, `pico_dbfs`, `fracao_amostras_saturadas` e `avisos`. RMS e pico de silêncio digital são `null`, evitando valores infinitos em JSON. Tempos ausentes em manifestos antigos também aparecem como `null`.
 
-## Outras ferramentas
+## Outras ferramentas e servidor local
 
 ```bash
 python medir_audio.py saida/aula.v2.wav --min-pausa-ms 250 --limiar-db -45
 python comparar_vozes.py --idioma es --saida saida/comparacao_es
+python servidor_api.py --porta 8000
 ```
 
-`medir_audio.py` apresenta a linha do tempo de fala/silêncio no terminal. `comparar_vozes.py` gera uma seleção de amostras em CPU; `--listar` imprime os nomes disponíveis e continua gerando amostras.
+`medir_audio.py` apresenta a linha do tempo de fala/silêncio no terminal. `comparar_vozes.py` gera uma seleção de amostras em CPU; `--listar` imprime os nomes disponíveis e continua gerando amostras. `servidor_api.py` *(beta)* expõe a rota `POST /v1/audio/speech` compatível com clientes OpenAI TTS, além de `GET /v1/models`, `GET /v1/voices` e `GET /health`.

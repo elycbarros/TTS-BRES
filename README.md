@@ -58,13 +58,13 @@ Converta arquivos `.txt` em MP3 ou WAV com normalização de números, siglas e 
 
 ## ✨ Recursos
 
-| Texto e pronúncia | Voz e áudio | Conferência |
+| Texto e pronúncia | Voz e áudio | Conferência e ecossistema |
 |:---|:---|:---|
-| Detecção de PT-BR e espanhol | Múltiplos locutores no roteiro | Transcrição com Whisper |
-| Números, siglas e unidades por extenso | Tags de pausa e volume | WER por distância de edição |
-| Glossários por arquivo e idioma | Exportação MP3 e WAV | Medição de pausas e volume |
-| Pronúncia de termos técnicos | CUDA, MPS ou CPU | Comparação de vozes |
-| Datas, horários, moedas e negativos | Cache e retomada automática | Relatórios JSON por idioma e trecho |
+| Detecção de PT-BR e espanhol | Múltiplos locutores e vozes clonadas por personagem | Transcrição com Whisper e WER |
+| Números, siglas e unidades por extenso | Tags de pausa, volume e tom (`[tom:calmo]`, `[enfase]`) | Exportação de legendas `.srt` e `.vtt` |
+| Glossários por arquivo e idioma | Exportação MP3, WAV, 24/44.1/48 kHz e masterização LUFS | Regeneração seletiva por trecho e auto-retry |
+| Pronúncia de termos técnicos | Trilha de fundo com *auto-ducking* e limpeza de referência *(beta)* | Servidor HTTP local compatível com OpenAI *(beta)* |
+| Datas, horários, moedas e negativos | Cache SHA-256 e retomada automática | Relatórios JSON por idioma e trecho |
 
 ---
 
@@ -130,8 +130,11 @@ Esse comando detecta o idioma por parágrafo e grava:
 A pasta de saída é criada automaticamente. Arquivos com o mesmo nome podem ser sobrescritos. Pontos no nome base são preservados: `--saida saida/aula.v2` gera `aula.v2.mp3` e `aula.v2.blocos.json`.
 
 ```bash
-# MP3 e WAV na mesma execução
-python tts.py exemplos/narracao_pt.txt --saida saida/narracao_pt --wav
+# MP3, WAV e legendas SRT na mesma execução
+python tts.py exemplos/narracao_pt.txt --saida saida/narracao_pt --wav --srt
+
+# Masterização em -16 LUFS (padrão podcast) e saída em 44.1 kHz
+python tts.py exemplos/narracao_pt.txt --saida saida/narracao_pt --lufs -16 --taxa-amostragem 44100
 
 # Apenas WAV
 python tts.py exemplos/narracao_pt.txt --saida saida/narracao_pt --formatos wav
@@ -139,8 +142,11 @@ python tts.py exemplos/narracao_pt.txt --saida saida/narracao_pt --formatos wav
 # Espanhol com voz específica
 python tts.py exemplos/narracao_es.txt --idioma es --locutor "Xavier Hayasaka" --saida saida/narracao_es
 
-# Voz de referência para clonagem
-python tts.py exemplos/narracao_pt.txt --voz referencia.wav --saida saida/voz_referencia
+# Voz de referência para clonagem (com higienização opcional em beta)
+python tts.py exemplos/narracao_pt.txt --voz referencia.wav --limpar-referencia --saida saida/voz_referencia
+
+# Diálogo com múltiplas vozes clonadas por personagem
+python tts.py exemplos/dialogo.txt --vozes-personagens "luis=vozes/luis.wav,alma=vozes/alma.wav" --saida saida/dialogo_clonado
 
 # Execução em CPU
 python tts.py exemplos/narracao_pt.txt --dispositivo cpu --saida saida/teste_cpu
@@ -166,6 +172,9 @@ python tts.py exemplos/narracao_pt.txt --saida saida/narracao_pt --wav
 
 # Para gerar novas versões de todos os trechos
 python tts.py exemplos/narracao_pt.txt --saida saida/narracao_pt --wav --refazer
+
+# Para regerar apenas os segmentos #2 e #5, preservando os demais do cache
+python tts.py exemplos/narracao_pt.txt --saida saida/narracao_pt --wav --refazer-segmentos 2,5
 ```
 
 A retomada é automática. Cada segmento tem uma chave calculada a partir do texto enviado à síntese, idioma, voz ou conteúdo da referência, velocidade, volume, corte de silêncio, dispositivo solicitado, versão do pipeline e versões das dependências. Antes de reutilizar o WAV, o programa verifica seu formato e hash SHA-256. Segmentos ausentes, incompletos ou corrompidos são gerados novamente.
@@ -219,6 +228,7 @@ Os rótulos são removidos antes da síntese. Apelidos como `Narrador`, `Luis`, 
 - `[Alma|es]:` escolhe a personagem e força espanhol naquele parágrafo.
 - `[es]:` força espanhol e usa a voz selecionada pelas opções do comando ou pelo idioma.
 - `[Alma]:` escolhe a voz; o idioma continua sujeito à detecção ou à opção `--idioma`.
+- `[vozes/convidado.wav|pt]:` usa diretamente um arquivo de áudio de referência para aquele parágrafo. Também é possível mapear nomes de personagens na linha de comando com `--vozes-personagens "luis=vozes/luis.wav,alma=vozes/alma.wav"`. Cada personagem mantém seu próprio hash SHA-256 no cache.
 
 <a id="normalizacao"></a>
 
@@ -255,12 +265,13 @@ Ele analisou os resultados [pausa:1.5s] e tomou uma decisão.
 Ele concluiu: [sussurro] tudo funcionou.
 ```
 
-| Tag | Efeito | Sinônimos |
+| Tag | Efeito | Sinônimos / Variações |
 |---|---|---|
 | `[pausa:1.5s]` ou `[pausa:800ms]` | Insere silêncio na posição da tag. Sem parâmetro, usa 1000 ms. | `[silencio:1.5s]` |
 | `[respiro]` | Insere uma pausa de 400 ms; não gera som de respiração. | `[respiracao]` |
 | `[enfase]` | Eleva o volume alvo do próximo trecho em 2,5 dB. | `[destaque]` |
 | `[sussurro]` | Reduz o volume alvo do próximo trecho em 4 dB. | `[baixo]`, `[calmo]` |
+| `[tom:calmo]` ou `[tom:enfatico]` | Ajusta cadência (velocidade) e volume alvo do próximo trecho conforme o preset (`calmo`, `suave`, `enfatico`, `animado`, `sussurro`, `serio`) ou usa uma referência de condicionamento mapeada em `--vozes-tons` / `[tom:arquivo.wav]` *(condicionamento por áudio em beta)*. | `[estilo:...]` |
 
 **Validação das tags:** elas são interpretadas antes da divisão dos trechos, inclusive quando usam espaços como `[pausa: 1500ms]`. Tags desconhecidas, colchetes incompletos e durações inválidas interrompem a execução com uma mensagem de erro antes do carregamento do modelo. Use durações não negativas; `[pausa:0s]` é aceito.
 
@@ -331,14 +342,25 @@ As seções por idioma também são mescladas, preservando entradas que não for
 | `--idioma` | `auto` | `auto`, `pt` ou `es`. |
 | `--locutor` | Por idioma | Nome de uma voz embutida. |
 | `--voz` | — | Caminho do áudio de referência para clonagem. |
+| `--vozes-personagens` | — | Mapeia personagens do roteiro para arquivos WAV (`personagem=arquivo.wav,...`). |
+| `--vozes-tons` | — | *(Beta)* Mapeia tons (`[tom:X]`) para arquivos WAV de condicionamento. |
+| `--limpar-referencia` | Desativado | *(Beta)* Higieniza áudios de referência via FFmpeg (`highpass`, `lowpass`, `afftdn`, `loudnorm`). |
 | `--velocidade` | `1.1` | Velocidade de fala; `1.0` corresponde à velocidade original. |
 | `--dispositivo` | `auto` | `auto`, `cpu`, `cuda` ou `mps`. |
 | `--volume-alvo` | `-20.0` | Volume alvo em dBFS, sujeito aos limites de ganho e pico. |
+| `--lufs` | — | Masteriza o áudio final para o alvo de loudness integrado em LUFS (`-70` a `-5`, ex.: `-16`). |
+| `--taxa-amostragem` | `24000` | Taxa de amostragem final em Hz (`24000`, `44100` ou `48000`). |
+| `--trilha` | — | *(Beta)* Arquivo de áudio para trilha sonora de fundo (BGM) com *auto-ducking* na fala. |
+| `--volume-trilha` | `-18.0` | *(Beta)* Volume base da trilha de fundo em dB (`-60` a `0`) antes do *auto-ducking*. |
+| `--max-tentativas` | `2` | Máximo de tentativas por segmento ao detectar silêncio total ou alucinação de duração. |
 | `--glossario` | — | Glossário adicional em TXT ou JSON. |
-| `--formatos` | `mp3` | Formatos aceitos: `mp3`, `wav` ou `mp3,wav`. |
+| `--formatos` | `mp3` | Formatos aceitos: combinações de `mp3`, `wav`, `srt` e `vtt`. |
 | `--analisar` | Desativado | Mostra o plano normalizado sem inferência nem saídas finais. |
-| `--refazer` | Desativado | Regenera segmentos mesmo quando existe cache válido. |
-| `--wav` | Desativado | Acrescenta WAV aos formatos escolhidos. |
+| `--refazer` | Desativado | Regenera todos os segmentos mesmo quando existe cache válido. |
+| `--refazer-segmentos` | — | Regenera apenas os IDs informados (`ex.: 2` ou `1,4`), reutilizando os demais do cache. |
+| `--wav` | Desativado | Acrescenta `.wav` aos formatos escolhidos. |
+| `--srt` | Desativado | Acrescenta legenda `.srt` sincronizada aos formatos escolhidos. |
+| `--vtt` | Desativado | Acrescenta legenda `.vtt` (WebVTT) sincronizada aos formatos escolhidos. |
 | `--sem-normalizar` | Desativado | Desativa a normalização fonética; as tags continuam sendo interpretadas. |
 | `--sem-corte-silencio` | Desativado | Preserva o silêncio residual nas bordas dos trechos. |
 
@@ -528,7 +550,8 @@ TTSBR/
 ├── abrir_gui.command        # iniciador macOS
 ├── abrir_gui.bat            # iniciador Windows
 ├── tts.py                   # CLI, síntese e exportação
-├── audio_persistente.py     # cache verificável e montagem em disco
+├── servidor_api.py          # servidor HTTP local compatível com OpenAI TTS (beta)
+├── audio_persistente.py     # cache verificável, legendas e montagem em disco
 ├── normalizador.py          # idioma, números e pronúncias PT/ES
 ├── validar_audio.py         # transcrição Whisper e WER por idioma/trecho
 ├── qualidade_audio.py       # métricas acústicas dos segmentos

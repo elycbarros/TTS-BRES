@@ -29,10 +29,11 @@ Textos com mais de 450 palavras são agrupados em blocos com alvo de 150 palavra
 
 | Arquivo | Responsabilidade |
 |---|---|
-| `gui.py`, `gui_core.py`, `gui_worker.py` | Janela Tkinter, snapshots e processamento isolado, com eventos estruturados. |
-| `tts.py` | CLI, preparação, seleção de voz, plano, inferência e progresso. |
+| `gui.py`, `gui_core.py`, `gui_worker.py` | Janela Tkinter, snapshots, regeneração seletiva e processamento isolado, com eventos estruturados. |
+| `tts.py` | CLI, preparação, seleção de voz/tom, plano, inferência com auto-retry anti-alucinação e progresso. |
+| `servidor_api.py` | *(Beta)* Servidor HTTP local compatível com o endpoint `/v1/audio/speech` da OpenAI, reutilizando o cache. |
 | `normalizador.py` | Detecção PT/ES, abreviações, números e glossários. |
-| `audio_persistente.py` | Chaves, integridade, gravação dos segmentos, montagem e exportação. |
+| `audio_persistente.py` | Chaves, integridade, higienização de referência, gravação dos segmentos, legendas `.srt`/`.vtt`, montagem e exportação (LUFS, resampling e BGM ducking). |
 | `validar_audio.py` | ASR, alinhamento, WER, agregação e relatórios. |
 | `qualidade_audio.py` | Duração, energia RMS, pico e amostras próximas da saturação. |
 | `medir_audio.py` | Segmentação de fala e pausas por limiar. |

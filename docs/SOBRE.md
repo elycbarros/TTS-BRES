@@ -108,12 +108,13 @@ Após a síntese, o pipeline pode remover excesso de silêncio nas bordas, ajust
 | Característica | Comportamento |
 |---|---|
 | Áudio intermediário | WAV PCM mono, 16 bits, 24 kHz. |
-| Formatos finais | WAV e MP3. |
-| MP3 | Exportação a 192 kbps com FFmpeg. |
-| Volume | Ajuste em dBFS, sujeito aos limites de ganho e pico. |
+| Formatos finais | WAV, MP3 e legendas sincronizadas por segmento (`.srt` e `.vtt`). |
+| MP3 e amostragem | Exportação a 192 kbps com FFmpeg; opção de saída em 24, 44.1 ou 48 kHz. |
+| Volume e loudness | Ajuste por segmento em dBFS e opção de masterização integrada em LUFS (`--lufs`). |
+| Trilha e referência *(beta)* | Mixagem opcional de BGM com *auto-ducking* (`--trilha`) e limpeza de referência (`--limpar-referencia`). |
 | Montagem | Cópia de segmentos e inserção de pausas em disco. |
 
-**Limites:** o projeto não realiza masterização completa. Não oferece tratamento especializado de ruído, equalização, compressão musical, mixagem de trilhas ou normalização perceptiva em LUFS. O ajuste em dBFS não garante a mesma sensação de volume entre vozes. O corte de silêncio usa limiares e margens; pode preservar silêncio demais ou afetar partes muito suaves.
+**Limites:** os recursos de higienização de referência (`--limpar-referencia`), mixagem de trilha sonora com *auto-ducking* (`--trilha`), condicionamento neural por tom (`--vozes-tons`) e servidor HTTP compatível com OpenAI (`servidor_api.py`) estão em **beta**. As legendas `.srt`/`.vtt` são alinhadas por segmento (frase/trecho), não palavra por palavra. O corte de silêncio usa limiares e margens; pode preservar silêncio demais ou afetar partes muito suaves.
 
 ## Cache e retomada
 
@@ -164,15 +165,13 @@ A [GUI inicial](GUI.md) permite abrir e editar roteiros, configurar a síntese, 
 ## O que o projeto não oferece atualmente
 
 - Instaladores independentes, player embutido ou edição de áudio por forma de onda.
-- API HTTP, serviço multiusuário ou fila de processamento.
-- Streaming de voz em tempo real.
+- Serviço multiusuário em nuvem ou fila distribuída de processamento (o `servidor_api.py` é local e em beta).
+- Streaming de voz em tempo real chunk a chunk.
 - Importação direta de PDF, Word, páginas da web ou imagens.
 - Escrita, pesquisa, revisão editorial ou tradução automática do roteiro.
 - Dublagem sincronizada com vídeo ou movimento labial.
-- Música de fundo, efeitos sonoros ou mixagem de várias trilhas.
-- Legendas com alinhamento de cada palavra.
-- Controle confiável de emoção, interpretação ou sotaque.
-- Garantia de reprodução idêntica entre máquinas e execuções.
+- Legendas com alinhamento individual palavra por palavra (as legendas `.srt`/`.vtt` são por segmento).
+- Garantia de reprodução idêntica bit a bit entre máquinas e execuções.
 
 ## Licenciamento
 

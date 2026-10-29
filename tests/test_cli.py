@@ -32,9 +32,17 @@ class TestPreparacao(unittest.TestCase):
 
     def test_tags_invalidas(self):
         for tag in ('[enfaze]', '[pausa:-1s]', '[pausa:nan]', '[pausa:]',
-                    '[pausa:abc]', '[respiro:1s]', '[pausa:1s', '[[]]', '[]', '[pausa:1s]]'):
+                    '[pausa:abc]', '[respiro:1s]', '[pausa:1s', '[[]]', '[]', '[pausa:1s]]',
+                    '[tom:]', '[tom:invalido com espaco]'):
             with self.subTest(tag=tag), self.assertRaises(ValueError):
                 tts.preparar_segmentos('antes ' + tag + ' depois', 'pt')
+
+    def test_tag_tom_predefinido_e_customizado(self):
+        itens = tts.preparar_segmentos('[tom:calmo] Fala tranquila. Segunda frase.', 'pt', False)
+        self.assertEqual(itens[0][1]['tom'], 'calmo')
+        self.assertEqual(itens[0][1]['volume_offset_db'], -2.0)
+        self.assertEqual(itens[0][1]['velocidade_fator'], 0.92)
+        self.assertEqual(itens[1][1], {})
 
     def test_aliases_e_pausas(self):
         for tag, ms in (('[pausa]', 1000), ('[silencio:1.5s]', 1500),
@@ -55,7 +63,23 @@ class TestCLI(unittest.TestCase):
             ('Olá.', ['--formatos', 'ogg']),
             ('Olá.', ['--formatos', '']),
             ('Olá.', ['--formatos', 'mp3,']),
+            ('Olá.', ['--lufs', '0']),
+            ('Olá.', ['--lufs', '-80']),
+            ('Olá.', ['--lufs', 'nan']),
+            ('Olá.', ['--taxa-amostragem', '16000']),
             ('Olá.', ['--voz', '/arquivo-inexistente.wav']),
+            ('Olá.', ['--vozes-personagens', 'invalido']),
+            ('Olá.', ['--vozes-personagens', 'luis=/inexistente.wav']),
+            ('Olá.', ['--vozes-tons', 'calmo=/inexistente.wav']),
+            ('Olá.', ['--max-tentativas', '0']),
+            ('Olá.', ['--refazer-segmentos', '0']),
+            ('Olá.', ['--refazer-segmentos', 'abc']),
+            ('Olá.', ['--refazer-segmentos', '5']),
+            ('Olá.', ['--trilha', '/trilha-inexistente.mp3']),
+            ('Olá.', ['--volume-trilha', '5']),
+            ('[inexistente.wav]: Olá.', []),
+            ('[tom:inexistente.wav] Olá.', []),
+            ('[tom:tom_nao_mapeado] Olá.', []),
             ('', []), (' \n ', []), ('[pausa:1s]', []), ('[enfase]', []),
             ('[Luis|fr]: Bonjour.', []), ('[en]: Hello.', []),
             ('[Luis|]: Olá.', []), ('[|es]: Hola.', []),
@@ -127,6 +151,30 @@ class TestCLI(unittest.TestCase):
             self.assertAlmostEqual(manifesto['segmentos'][0]['inicio_s'], .2)
             self.assertAlmostEqual(manifesto['segmentos'][1]['inicio_s'], 1.8)
             self.assertAlmostEqual(manifesto['segmentos'][1]['fim_s'], 1.9)
+
+    def test_exportacao_legendas_srt_e_vtt(self):
+        api = types.ModuleType('TTS.api')
+        api.TTS = MagicMock()
+        modelo = api.TTS.return_value.to.return_value
+        modelo.tts.return_value = np.sin(np.arange(2400) * .1) * .1
+        with tempfile.TemporaryDirectory() as tmp:
+            pasta = Path(tmp)
+            entrada = pasta / 'texto.txt'
+            entrada.write_text('Primeira frase. Segunda frase.', encoding='utf-8')
+            base = pasta / 'video'
+            args = ['tts.py', str(entrada), '--saida', str(base), '--formatos', 'wav',
+                    '--srt', '--vtt', '--sem-corte-silencio']
+            with patch.dict(sys.modules, {'TTS.api': api}), patch.object(sys, 'argv', args), \
+                    patch.object(tts, 'escolher_dispositivo', return_value='cpu'), \
+                    patch.object(tts, 'configurar_ffmpeg'), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                tts.main()
+            srt = (pasta / 'video.srt').read_text(encoding='utf-8')
+            vtt = (pasta / 'video.vtt').read_text(encoding='utf-8')
+            self.assertIn('1\n00:00:00,200 --> 00:00:00,300\nPrimeira frase', srt)
+            self.assertIn('2\n00:00:00,900 --> 00:00:01,000\nSegunda frase', srt)
+            self.assertTrue(vtt.startswith('WEBVTT\n\n'))
+            self.assertIn('00:00:00.200 --> 00:00:00.300\nPrimeira frase', vtt)
 
 
 if __name__ == '__main__':

@@ -29,7 +29,7 @@ import sys
 import warnings
 from importlib.metadata import version, PackageNotFoundError
 
-from audio_persistente import CacheSegmentos, exportar, hash_arquivo, salvar_json
+from audio_persistente import CacheSegmentos, exportar, hash_arquivo, higienizar_referencia, salvar_json
 from pathlib import Path
 
 os.environ.setdefault("COQUI_TOS_AGREED", "1")  # aceita a licença do XTTS v2
@@ -114,18 +114,30 @@ def analise_previa(texto: str) -> dict:
     }
 
 
+TONS_PREDEFINIDOS: dict[str, dict] = {
+    "enfatico": {"volume_offset_db": 2.5, "velocidade_fator": 1.05},
+    "enfase": {"volume_offset_db": 2.5, "velocidade_fator": 1.05},
+    "animado": {"volume_offset_db": 2.0, "velocidade_fator": 1.08},
+    "calmo": {"volume_offset_db": -2.0, "velocidade_fator": 0.92},
+    "suave": {"volume_offset_db": -2.5, "velocidade_fator": 0.94},
+    "sussurro": {"volume_offset_db": -4.0, "velocidade_fator": 0.90},
+    "serio": {"volume_offset_db": 0.0, "velocidade_fator": 0.95},
+}
+
+
 def extrair_tags_expressividade(texto: str) -> list[tuple[str, dict]]:
-    """Extrai tags de direção de voz: [pausa:Xms], [pausa:Xs], [respiro], [enfase], [sussurro].
+    """Extrai tags de direção de voz: [pausa:Xms], [pausa:Xs], [respiro], [enfase], [sussurro], [tom:X].
 
     Retorna uma lista ordenada de (texto, modificadores):
       - pausa/respiro viram um item próprio ("", {"pausa_extra_ms": N}) NA POSIÇÃO da tag;
-      - enfase/sussurro viram {"volume_offset_db": X} aplicado ao próximo trecho de texto.
+      - enfase/sussurro/tom viram modificadores aplicados ao próximo trecho de texto.
     """
     if re.search(r"\[[^\]]*$|^[^\[]*\]", texto):
         raise ValueError("Tag com colchetes incompletos.")
     partes = re.split(r"(\[[^\[\]]*\])", texto)
     itens: list[tuple[str, dict]] = []
     volume_pendente: float | None = None
+    tom_pendente: str | None = None
 
     for p in partes:
         p_strip = p.strip()
@@ -135,13 +147,24 @@ def extrair_tags_expressividade(texto: str) -> list[tuple[str, dict]]:
         if not m_tag:
             if "[" in p_strip or "]" in p_strip:
                 raise ValueError(f"Tag inválida: {p_strip}")
-            mods = {"volume_offset_db": volume_pendente} if volume_pendente is not None else {}
+            mods: dict = {}
+            if tom_pendente is not None:
+                preset = TONS_PREDEFINIDOS.get(tom_pendente.lower(), {})
+                if "volume_offset_db" in preset:
+                    mods["volume_offset_db"] = preset["volume_offset_db"]
+                if "velocidade_fator" in preset:
+                    mods["velocidade_fator"] = preset["velocidade_fator"]
+                mods["tom"] = tom_pendente
+            if volume_pendente is not None:
+                mods["volume_offset_db"] = volume_pendente
             itens.append((p_strip, mods))
             volume_pendente = None
+            tom_pendente = None
             continue
 
         tag_nome = m_tag.group(1).lower()
-        tag_param = (m_tag.group(2) or "").strip().lower()
+        tag_param_raw = (m_tag.group(2) or "").strip()
+        tag_param = tag_param_raw.lower()
 
         if tag_nome in ("pausa", "silencio"):
             ms = 1000
@@ -154,6 +177,10 @@ def extrair_tags_expressividade(texto: str) -> list[tuple[str, dict]]:
                     raise ValueError(f"Duração inválida na tag {p_strip}.")
                 ms = int(duracao)
             itens.append(("", {"pausa_extra_ms": ms}))
+        elif tag_nome in ("tom", "estilo"):
+            if not tag_param_raw or not re.fullmatch(r"[a-zA-ZçãéíóúÁÉÍÓÚ0-9_./\\-]+", tag_param_raw):
+                raise ValueError(f"Parâmetro inválido na tag {p_strip}; informe um estilo (ex.: calmo, enfatico) ou arquivo WAV.")
+            tom_pendente = tag_param_raw
         elif m_tag.group(2) is not None:
             raise ValueError(f"A tag {tag_nome} não aceita parâmetros.")
         elif tag_nome in ("respiro", "respiracao"):
@@ -207,6 +234,85 @@ def dividir_frases(paragrafo: str) -> list[str]:
     return saida
 
 
+EXTENSOES_AUDIO = (".wav", ".mp3", ".flac", ".m4a", ".ogg")
+
+
+def eh_caminho_audio(nome: str | None) -> bool:
+    return bool(nome and nome.strip().lower().endswith(EXTENSOES_AUDIO))
+
+
+def resolver_caminho_voz(caminho_str: str, base_texto: Path | None = None) -> str:
+    candidato = Path(caminho_str.strip()).expanduser()
+    if candidato.is_file():
+        return str(candidato.resolve())
+    if base_texto is not None and not candidato.is_absolute():
+        relativo = (base_texto.parent / candidato).expanduser()
+        if relativo.is_file():
+            return str(relativo.resolve())
+    raise ValueError(f"Áudio de referência não encontrado: {caminho_str}")
+
+
+def carregar_vozes_personagens(especificacao: str | None, base_texto: Path | None = None) -> dict[str, str]:
+    if not especificacao or not especificacao.strip():
+        return {}
+    mapa: dict[str, str] = {}
+    for item in especificacao.split(","):
+        item = item.strip()
+        if not item:
+            continue
+        if "=" not in item:
+            raise ValueError(f"Mapeamento de voz inválido ({item!r}); use personagem=arquivo.wav.")
+        chave, caminho = item.split("=", 1)
+        chave = chave.strip().lower()
+        caminho = caminho.strip()
+        if not chave or not caminho:
+            raise ValueError(f"Mapeamento de voz inválido ({item!r}); use personagem=arquivo.wav.")
+        resolvido = resolver_caminho_voz(caminho, base_texto)
+        mapa[chave] = resolvido
+        oficial = PERSONAGENS_MAP.get(chave)
+        if oficial:
+            mapa[oficial.lower()] = resolvido
+    return mapa
+
+
+def resolver_voz_segmento(
+    locutor_char: str | None,
+    vozes_personagens: dict[str, str],
+    base_texto: Path | None = None,
+) -> str | None:
+    if not locutor_char:
+        return None
+    chave = locutor_char.strip().lower()
+    if chave in vozes_personagens:
+        return vozes_personagens[chave]
+    if eh_caminho_audio(locutor_char):
+        return resolver_caminho_voz(locutor_char, base_texto)
+    return None
+
+
+def resolver_voz_tom(
+    mods: dict,
+    vozes_tons: dict[str, str],
+    base_texto: Path | None = None,
+) -> str | None:
+    tom = mods.get("tom")
+    if tom:
+        chave = tom.strip().lower()
+        if chave in vozes_tons:
+            return vozes_tons[chave]
+        if eh_caminho_audio(tom):
+            return resolver_caminho_voz(tom, base_texto)
+        if chave not in TONS_PREDEFINIDOS:
+            raise ValueError(f"Tom desconhecido ({tom!r}); use {', '.join(sorted(TONS_PREDEFINIDOS))} ou mapeie em --vozes-tons.")
+        return None
+    offset = mods.get("volume_offset_db")
+    if offset == 2.5 and ("enfase" in vozes_tons or "enfatico" in vozes_tons):
+        return vozes_tons.get("enfase") or vozes_tons.get("enfatico")
+    if offset == -4.0 and "sussurro" in vozes_tons:
+        return vozes_tons["sussurro"]
+    return None
+
+
 def resolver_locutor(nome_ou_tag: str | None, idioma_trecho: str, locutor_fallback: str) -> str:
     """Resolve o locutor a partir de um nome de personagem, nome oficial ou idioma."""
     if not nome_ou_tag:
@@ -232,7 +338,7 @@ def montar_itens(
         locutor_par = None
         lang_par = None
 
-        m_char = re.match(r"^\[([a-zA-ZçãéíóúÁÉÍÓÚ0-9_|\s-]+)\]\s*:\s*(.*)$", par)
+        m_char = re.match(r"^\[([a-zA-ZçãéíóúÁÉÍÓÚ0-9_|./\\\s-]+)\]\s*:\s*(.*)$", par)
         if m_char:
             tag_corpo = m_char.group(1).strip()
             par = m_char.group(2).strip()
@@ -379,11 +485,32 @@ def para_segmento(
     return seg.fade_in(10).fade_out(25)
 
 
+LIMIAR_ALUCINACAO_S_POR_CHAR = 0.35
+DURACAO_MIN_ALUCINACAO_S = 3.5
+
+
+def avaliar_anomalia_sintese(
+    segmento: AudioSegment,
+    texto_voz: str,
+    velocidade: float = 1.0,
+) -> str | None:
+    """Detecta anomalias graves de síntese no XTTS v2 (silêncio total ou loop/alucinação)."""
+    duracao_s = len(segmento) / 1000.0
+    if duracao_s <= 0.01 or segmento.dBFS == float("-inf"):
+        return "silencio_total"
+    n_chars = max(1, len(texto_voz.strip()))
+    fator_vel = max(0.5, float(velocidade))
+    limite_s = max(DURACAO_MIN_ALUCINACAO_S, (n_chars * LIMIAR_ALUCINACAO_S_POR_CHAR) / fator_vel)
+    if duracao_s > limite_s:
+        return f"duracao_excessiva ({duracao_s:.1f}s para {n_chars} caracteres; limite {limite_s:.1f}s)"
+    return None
+
+
 class SinteseInterrompida(Exception):
     """Interrupção solicitada entre segmentos, com cache preservado."""
 
 
-def main(argv=None, on_event=None, should_stop=None):
+def main(argv=None, on_event=None, should_stop=None, modelo_precarregado=None):
     def emitir(tipo, **dados):
         if on_event is not None:
             on_event({"tipo": tipo, **dados})
@@ -412,8 +539,46 @@ def main(argv=None, on_event=None, should_stop=None):
     ap.add_argument("--sem-normalizar", action="store_true", help="desativa a normalização fonética")
     ap.add_argument("--sem-corte-silencio", action="store_true", help="não remove silêncio residual do XTTS")
     ap.add_argument("--refazer", action="store_true", help="regenera os segmentos, ignorando o cache existente")
+    ap.add_argument(
+        "--refazer-segmentos", default=None,
+        help="regenera apenas os IDs de segmentos informados, preservando os demais do cache (ex.: '2' ou '1,4')",
+    )
     ap.add_argument("--wav", action="store_true", help="gera também o arquivo .wav além do .mp3")
-    ap.add_argument("--formatos", default="mp3", help="formatos de saída (padrão: mp3; ex.: mp3,wav)")
+    ap.add_argument("--srt", action="store_true", help="gera também o arquivo de legendas .srt")
+    ap.add_argument("--vtt", action="store_true", help="gera também o arquivo de legendas .vtt (WebVTT)")
+    ap.add_argument("--formatos", default="mp3", help="formatos de saída (padrão: mp3; aceita mp3,wav,srt,vtt)")
+    ap.add_argument(
+        "--lufs", type=float, default=None,
+        help="normaliza o loudness final integrado em LUFS via FFmpeg (ex.: -16 para podcasts, -14 para web)",
+    )
+    ap.add_argument(
+        "--taxa-amostragem", type=int, default=SAMPLE_RATE, choices=[24000, 44100, 48000],
+        help="taxa de amostragem de saída em Hz (padrão: 24000; opções: 24000, 44100, 48000)",
+    )
+    ap.add_argument(
+        "--trilha", default=None,
+        help="arquivo de áudio para trilha sonora de fundo (BGM) com auto-ducking automático na fala",
+    )
+    ap.add_argument(
+        "--volume-trilha", type=float, default=-18.0,
+        help="volume base da trilha de fundo em dB antes do auto-ducking (padrão: -18.0; faixa: -60 a 0)",
+    )
+    ap.add_argument(
+        "--vozes-personagens", default=None,
+        help="mapeia personagens do roteiro para arquivos WAV de referência (ex.: 'narrador=luis.wav,alma=alma.wav')",
+    )
+    ap.add_argument(
+        "--vozes-tons", default=None,
+        help="mapeia tons de expressão ([tom:X]) para arquivos WAV de referência (ex.: 'enfatico=enfase.wav,calmo=calmo.wav')",
+    )
+    ap.add_argument(
+        "--limpar-referencia", action="store_true",
+        help="higieniza áudios de referência (remove ruído e padroniza volume via FFmpeg antes da clonagem)",
+    )
+    ap.add_argument(
+        "--max-tentativas", type=int, default=2,
+        help="máximo de tentativas por segmento caso seja detectada alucinação/silêncio (padrão: 2)",
+    )
     ap.add_argument(
         "--dispositivo", default="auto", choices=["auto", "cpu", "cuda", "mps"],
         help="auto = CUDA se houver, senão CPU (mps é experimental no Mac)",
@@ -429,11 +594,24 @@ def main(argv=None, on_event=None, should_stop=None):
         ap.error("--velocidade deve ser um número finito maior que zero.")
     if not math.isfinite(args.volume_alvo) or args.volume_alvo > 0:
         ap.error("--volume-alvo deve ser um número finito menor ou igual a zero dBFS.")
+    if args.lufs is not None and (not math.isfinite(args.lufs) or not (-70.0 <= args.lufs <= -5.0)):
+        ap.error("--lufs deve ser um número entre -70 e -5 LUFS (ex.: -16).")
+    if not math.isfinite(args.volume_trilha) or not (-60.0 <= args.volume_trilha <= 0.0):
+        ap.error("--volume-trilha deve estar entre -60 e 0 dB.")
+    if args.max_tentativas < 1:
+        ap.error("--max-tentativas deve ser maior ou igual a 1.")
+    refazer_ids: set[int] = set()
+    if args.refazer_segmentos is not None:
+        partes_ids = [p.strip() for p in args.refazer_segmentos.split(",") if p.strip()]
+        if not partes_ids or any(not p.isdigit() or int(p) < 1 for p in partes_ids):
+            ap.error("--refazer-segmentos deve conter IDs inteiros positivos separados por vírgula (ex.: 2 ou 1,4).")
+        refazer_ids = {int(p) for p in partes_ids}
     formatos = list(dict.fromkeys(f.strip().lower() for f in args.formatos.split(",")))
-    if not formatos or any(f not in ("mp3", "wav") for f in formatos):
-        ap.error("--formatos aceita mp3, wav ou mp3,wav.")
-    if args.wav and "wav" not in formatos:
-        formatos.append("wav")
+    if not formatos or any(f not in ("mp3", "wav", "srt", "vtt") for f in formatos):
+        ap.error("--formatos aceita mp3, wav, srt, vtt ou combinações separadas por vírgula.")
+    for flag, fmt in ((args.wav, "wav"), (args.srt, "srt"), (args.vtt, "vtt")):
+        if flag and fmt not in formatos:
+            formatos.append(fmt)
     if not args.saida.strip() or Path(args.saida).is_dir():
         ap.error("--saida deve indicar um nome base de arquivo.")
     if args.locutor is not None:
@@ -442,10 +620,15 @@ def main(argv=None, on_event=None, should_stop=None):
             ap.error("--locutor não pode ser vazio.")
     if args.voz and not Path(args.voz).is_file():
         ap.error(f"Áudio de referência não encontrado: {args.voz}")
+    if args.trilha and not Path(args.trilha).is_file():
+        ap.error(f"Arquivo de trilha sonora não encontrado: {args.trilha}")
     normalizar = not args.sem_normalizar
+    caminho_texto = Path(args.texto)
     try:
-        texto = Path(args.texto).read_text(encoding="utf-8-sig")
+        texto = caminho_texto.read_text(encoding="utf-8-sig")
         glossario_extra = carregar_glossario(args.glossario, texto_path=args.texto)
+        vozes_personagens = carregar_vozes_personagens(args.vozes_personagens, base_texto=caminho_texto)
+        vozes_tons = carregar_vozes_personagens(args.vozes_tons, base_texto=caminho_texto)
     except (OSError, ValueError) as exc:
         ap.error(str(exc))
     if not texto.strip():
@@ -483,6 +666,11 @@ def main(argv=None, on_event=None, should_stop=None):
              for t, fim, lang, locutor in bloco]
             for bloco in blocos
         ]
+        for bloco in plano:
+            for segmentos_tags, _, _, locutor in bloco:
+                resolver_voz_segmento(locutor, vozes_personagens, base_texto=caminho_texto)
+                for _, mods in segmentos_tags:
+                    resolver_voz_tom(mods, vozes_tons, base_texto=caminho_texto)
     except ValueError as exc:
         ap.error(str(exc))
     if not any(limpar_para_voz(t) for bloco in plano for segmentos, _, _, _ in bloco
@@ -515,6 +703,8 @@ def main(argv=None, on_event=None, should_stop=None):
              for segmentos, _, lang, locutor in b
              for sub, _ in segmentos if limpar_para_voz(sub)), 1)
     ]
+    if refazer_ids and any(idx > len(resumo_segmentos) for idx in refazer_ids):
+        ap.error(f"--refazer-segmentos contém ID fora do total de segmentos ({len(resumo_segmentos)}).")
     emitir("plano", total=len(resumo_segmentos), segmentos=resumo_segmentos)
     if args.analisar:
         for seg in resumo_segmentos:
@@ -538,18 +728,41 @@ def main(argv=None, on_event=None, should_stop=None):
     manifesto["segmentos"] = []
     manifesto["estado"] = "sintetizando"
     salvar_json(json_path, manifesto)
-    modelo = None
+    modelo = modelo_precarregado
     versoes = {}
     for pacote in ("coqui-tts", "torch", "numpy", "pydub"):
         try:
             versoes[pacote] = version(pacote)
         except PackageNotFoundError:
             versoes[pacote] = "indisponível"
-    referencia = hash_arquivo(args.voz) if args.voz else None
+    hashes_ref: dict[str, str] = {}
+    refs_limpas: dict[str, str] = {}
+
+    def obter_hash_ref(caminho_ref: str | None) -> str | None:
+        if not caminho_ref:
+            return None
+        chave = str(Path(caminho_ref).resolve())
+        if chave not in hashes_ref:
+            hashes_ref[chave] = hash_arquivo(chave)
+        return hashes_ref[chave]
+
+    def obter_voz_condicionada(caminho_ref: str | None) -> str | None:
+        if not caminho_ref:
+            return None
+        if not args.limpar_referencia:
+            return caminho_ref
+        chave = str(Path(caminho_ref).resolve())
+        if chave not in refs_limpas:
+            refs_limpas[chave] = higienizar_referencia(chave, cache.pasta, AudioSegment.converter)
+        return refs_limpas[chave]
+
+    referencia = obter_hash_ref(args.voz)
     manifesto["configuracao"] = {
         "python": sys.version.split()[0], "versoes": versoes,
         "dispositivo_solicitado": args.dispositivo, "velocidade": args.velocidade,
         "volume_alvo": args.volume_alvo, "cortar_silencio": not args.sem_corte_silencio,
+        "lufs": args.lufs, "taxa_amostragem": args.taxa_amostragem,
+        "limpar_referencia": args.limpar_referencia, "max_tentativas": args.max_tentativas,
         "referencia_sha256": referencia,
         "fontes_sha256": {nome: hash_arquivo(Path(__file__).parent / nome)
                           for nome in ("tts.py", "normalizador.py", "audio_persistente.py")},
@@ -564,7 +777,7 @@ def main(argv=None, on_event=None, should_stop=None):
                    total=len(resumo_segmentos))
             raise SinteseInterrompida("Interrompido entre segmentos; repita a geração para retomar.")
 
-    def sintetizar(texto_voz, locutor, lang, volume):
+    def sintetizar(texto_voz, locutor, lang, volume, voz_ref=None, velocidade=None):
         nonlocal modelo
         if modelo is None:
             emitir("etapa", etapa="modelo", mensagem="Carregando o modelo de voz…")
@@ -572,16 +785,31 @@ def main(argv=None, on_event=None, should_stop=None):
             dispositivo = escolher_dispositivo(args.dispositivo)
             print(f"Dispositivo: {dispositivo}")
             modelo = TTS("tts_models/multilingual/multi-dataset/xtts_v2").to(dispositivo)
-        voz = {"speaker_wav": args.voz} if args.voz else {"speaker": locutor}
-        wav = modelo.tts(text=texto_voz, **voz, language=lang,
-                         split_sentences=False, speed=args.velocidade)
-        return para_segmento(wav, cortar_silencio=not args.sem_corte_silencio,
-                             volume_alvo_dbfs=volume)
+        voz_preparada = obter_voz_condicionada(voz_ref)
+        voz = {"speaker_wav": voz_preparada} if voz_preparada else {"speaker": locutor}
+        vel = args.velocidade if velocidade is None else velocidade
+        melhor_seg = None
+        for tentativa in range(1, args.max_tentativas + 1):
+            wav = modelo.tts(text=texto_voz, **voz, language=lang,
+                             split_sentences=False, speed=vel)
+            seg = para_segmento(wav, cortar_silencio=not args.sem_corte_silencio,
+                                volume_alvo_dbfs=volume)
+            anomalia = avaliar_anomalia_sintese(seg, texto_voz, vel)
+            if anomalia is None:
+                return seg
+            if melhor_seg is None or (seg.dBFS != float("-inf") and len(seg) < len(melhor_seg)):
+                melhor_seg = seg
+            if tentativa < args.max_tentativas:
+                print(f"    Aviso: anomalia na síntese ({anomalia}); repetindo ({tentativa + 1}/{args.max_tentativas})…")
+            else:
+                print(f"    Aviso: anomalia persistiu após {args.max_tentativas} tentativa(s) ({anomalia}).")
+        return melhor_seg
 
     for i, bloco in enumerate(plano, 1):
         print(f"--- Bloco {i}/{len(plano)} ---")
         for segmentos_tags, fim_par, lang_trecho, locutor_char in bloco:
             locutor_trecho = locutor_char or args.locutor or VOZES_PADRAO.get(lang_trecho, locutor_global)
+            voz_personagem = resolver_voz_segmento(locutor_char, vozes_personagens, base_texto=caminho_texto)
             for idx_seg, (sub_trecho, mods) in enumerate(segmentos_tags):
                 ultimo_sub = idx_seg == len(segmentos_tags) - 1
                 texto_voz = limpar_para_voz(sub_trecho)
@@ -603,7 +831,17 @@ def main(argv=None, on_event=None, should_stop=None):
                 pausa_total = pausa_base + mods.get("pausa_extra_ms", 0)
 
                 if texto_voz:
+                    voz_tom = resolver_voz_tom(mods, vozes_tons, base_texto=caminho_texto)
+                    voz_efetiva = voz_tom or voz_personagem or args.voz
+                    ref_efetiva = obter_hash_ref(voz_efetiva)
+                    vel_efetiva = (
+                        round(args.velocidade * mods["velocidade_fator"], 4)
+                        if "velocidade_fator" in mods
+                        else args.velocidade
+                    )
                     tag_info = ""
+                    if "tom" in mods:
+                        tag_info += f"|tom:{mods['tom']}"
                     if "volume_offset_db" in mods:
                         tag_info += f"|vol:{mods['volume_offset_db']:+.1f}dB"
                     if "pausa_extra_ms" in mods:
@@ -614,21 +852,26 @@ def main(argv=None, on_event=None, should_stop=None):
                     parametros = {
                         "pipeline": 1, "modelo": "tts_models/multilingual/multi-dataset/xtts_v2",
                         "versoes": versoes, "texto": texto_voz, "idioma": lang_trecho,
-                        "locutor": None if args.voz else locutor_trecho,
-                        "referencia_sha256": referencia, "velocidade": args.velocidade,
+                        "locutor": None if voz_efetiva else locutor_trecho,
+                        "referencia_sha256": ref_efetiva, "velocidade": vel_efetiva,
                         "volume_alvo": vol_alvo, "cortar_silencio": not args.sem_corte_silencio,
                         "dispositivo_solicitado": args.dispositivo,
                     }
+                    if args.limpar_referencia and voz_efetiva:
+                        parametros["limpar_referencia"] = True
                     verificar_interrupcao()
-                    emitir("etapa", etapa="sintese", mensagem=f"Processando segmento {len(manifesto['segmentos']) + 1}…")
+                    seg_id = len(manifesto["segmentos"]) + 1
+                    emitir("etapa", etapa="sintese", mensagem=f"Processando segmento {seg_id}…")
                     caminho, frames, reutilizado = cache.obter(
                         parametros,
-                        lambda: sintetizar(texto_voz, locutor_trecho, lang_trecho, vol_alvo),
-                        refazer=args.refazer,
+                        lambda v=voz_efetiva, vel=vel_efetiva: sintetizar(
+                            texto_voz, locutor_trecho, lang_trecho, vol_alvo, v, vel
+                        ),
+                        refazer=args.refazer or (seg_id in refazer_ids),
                     )
                     eventos.append(caminho)
                     manifesto["segmentos"].append({
-                        "id": len(manifesto["segmentos"]) + 1, "bloco": i,
+                        "id": seg_id, "bloco": i,
                         "texto": texto_voz, "idioma": lang_trecho, "locutor": parametros["locutor"],
                         "arquivo": str(caminho.resolve()), "chave": caminho.stem,
                         "inicio_s": cursor_frames / SAMPLE_RATE,
@@ -653,7 +896,9 @@ def main(argv=None, on_event=None, should_stop=None):
     emitir("etapa", etapa="montagem", mensagem="Montando e exportando o áudio…")
     manifesto["estado"] = "montando"
     salvar_json(json_path, manifesto)
-    exportar(eventos, base, formatos, AudioSegment.converter)
+    exportar(eventos, base, formatos, AudioSegment.converter,
+             segmentos=manifesto["segmentos"], lufs=args.lufs, taxa_amostragem=args.taxa_amostragem,
+             trilha=args.trilha, volume_trilha=args.volume_trilha)
     manifesto["estado"] = "concluido"
     salvar_json(json_path, manifesto)
     emitir("resultado", manifesto=str(json_path.resolve()),

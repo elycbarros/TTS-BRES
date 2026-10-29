@@ -2,7 +2,19 @@
 
 ## Não versionado — 29/10/2026
 
-As entradas abaixo consolidam as três entregas locais. Não representam uma versão publicada nem garantem que todas as alterações já tenham sido incluídas em um commit.
+As entradas abaixo consolidam as entregas locais. Não representam uma versão publicada nem garantem que todas as alterações já tenham sido incluídas em um commit.
+
+### Evoluções de estúdio, confiabilidade e ecossistema (Fases 1, 2 e 3)
+
+- Exportação nativa de legendas sincronizadas por segmento (`.srt` e `.vtt`) via `--srt`, `--vtt` ou `--formatos` (liberado).
+- Masterização final em LUFS (`--lufs`, padrão EBU R128 via FFmpeg) e seleção de taxa de amostragem (`--taxa-amostragem` em 24000, 44100 ou 48000 Hz) (liberado).
+- Diálogos com múltiplas vozes clonadas por personagem (`--vozes-personagens` ou `[arquivo.wav|pt]:`), com cache SHA-256 individual por locutor (liberado).
+- Guardrail anti-alucinação e silêncio total com repetição automática por segmento (`--max-tentativas`, padrão 2) (liberado).
+- Regeneração seletiva de trechos específicos (`--refazer-segmentos` na CLI e botão **Regerar trecho selecionado** na GUI), preservando os demais segmentos do cache (liberado).
+- Tags de expressão por tom (`[tom:calmo]`, `[tom:enfatico]`, `[tom:suave]`, `[tom:animado]`, `[tom:serio]`, `[tom:sussurro]`) com presets de cadência/volume (liberado) e condicionamento opcional por amostra de áudio (`--vozes-tons` ou `[tom:arquivo.wav]`, em beta).
+- Higienização opcional do áudio de referência (`--limpar-referencia`) com filtros `highpass`, `lowpass`, `afftdn` e `loudnorm` via FFmpeg (beta).
+- Mixagem opcional de trilha sonora de fundo (`--trilha` e `--volume-trilha`) com *auto-ducking* (`sidechaincompress`) via FFmpeg (beta).
+- Servidor HTTP local compatível com o endpoint OpenAI TTS (`servidor_api.py`, rota `/v1/audio/speech`), compartilhando o cache de segmentos (beta).
 
 ### Interface gráfica inicial
 

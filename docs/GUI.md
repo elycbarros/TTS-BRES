@@ -63,10 +63,13 @@ O glossário automático associado ao arquivo aberto é preservado na preparaç�
 
 - Executável Python do processamento.
 - Dispositivo: automático, CPU, MPS ou CUDA.
-- Volume alvo em dBFS.
+- Volume alvo em dBFS, loudness final em LUFS (opcional, ex.: `-16`) e taxa de amostragem (`24000`, `44100` ou `48000` Hz).
+- Máximo de tentativas por trecho (auto-retry contra silêncio/alucinação).
+- Mapeamento de vozes por personagem (`nome=arquivo.wav`) e por tom (`tom=arquivo.wav`, beta).
+- Trilha sonora de fundo (BGM) com *auto-ducking* e volume base em dB *(beta)*.
 - Glossário adicional em TXT ou JSON.
 - Pausas por frase, reticências, ponto e vírgula/dois-pontos, corte intermediário, parágrafo e bloco.
-- Desativar normalização, preservar silêncio nas bordas e refazer o cache.
+- Desativar normalização, preservar silêncio nas bordas, higienizar áudio de referência via FFmpeg *(beta)* e refazer o cache.
 
 A entrada de voz aceita outros nomes embutidos além das sugestões da lista. A validação das opções é feita pelo pipeline existente; erros e mensagens das bibliotecas aparecem na aba Registro.
 
@@ -111,7 +114,7 @@ As saídas finais e o cache de fala usam a pasta escolhida. Prefira `saida/` ou 
 
 - Não há instaladores `.app`/`.exe`, atualização automática ou ambiente Python embutido.
 - Não há fila de tarefas; a janela executa um trabalho de cada vez.
-- Não há editor visual de diálogos, regeneração seletiva por clique nem controle de emoção.
+- A regeneração seletiva de um segmento está disponível pelo botão **Regerar trecho selecionado** na aba de revisão; não há editor visual de forma de onda (DAW).
 - Abrir um manifesto não restaura o roteiro original no editor.
 - Naturalidade e sotaque continuam exigindo audição.
 - Janelas e reprodução no Windows ainda precisam de validação nesse sistema.

@@ -49,12 +49,15 @@ def iniciar_janela():
             self.preferencias = ROOT / 'local' / 'gui' / 'preferencias.json'
             self.vars = {}
             defaults = {'python': python_padrao(), 'saida': str(ROOT / 'saida' / 'narracao'),
-                        'idioma': 'auto', 'locutor': 'Automática', 'voz': '', 'glossario': '',
-                        'formatos': 'mp3,wav', 'velocidade': '1.1', 'volume_alvo': '-20',
+                        'idioma': 'auto', 'locutor': 'Automática', 'voz': '', 'vozes_personagens': '',
+                        'vozes_tons': '', 'glossario': '', 'trilha': '', 'volume_trilha': '-18',
+                        'formatos': 'mp3,wav', 'velocidade': '1.1',
+                        'volume_alvo': '-20', 'lufs': '', 'taxa_amostragem': '24000', 'max_tentativas': '2',
                         'dispositivo': 'auto', 'pausa_frase': '600', 'pausa_reticencias': '850',
                         'pausa_ponto_virgula': '420', 'pausa_virgula': '250',
                         'pausa_paragrafo': '1150', 'pausa_bloco': '500',
-                        'sem_normalizar': False, 'sem_corte_silencio': False, 'refazer': False}
+                        'sem_normalizar': False, 'sem_corte_silencio': False,
+                        'limpar_referencia': False, 'refazer': False}
             try:
                 cfg = json.loads(self.preferencias.read_text(encoding='utf-8'))
                 defaults.update({k: v for k, v in cfg.items() if k in defaults})
@@ -113,6 +116,7 @@ def iniciar_janela():
             for texto, acao in [('Abrir .txt', self._abrir), ('Salvar', self._salvar),
                                 ('Pausa', lambda: self._tag('[pausa:800ms]')),
                                 ('Ênfase', lambda: self._tag('[enfase]')),
+                                ('Tom', lambda: self._tag('[tom:calmo] ')),
                                 ('Personagem', lambda: self._tag('[Luis|pt]: '))]:
                 b = ttk.Button(barra, text=texto, command=acao)
                 b.pack(side='left', padx=(0, 5))
@@ -137,7 +141,12 @@ def iniciar_janela():
             scroll.pack(side='right', fill='y')
             self.tree.bind('<<TreeviewSelect>>', self._selecionar)
             ttk.Label(revisao, textvariable=self.detalhe, wraplength=650).pack(fill='x', pady=12)
-            ttk.Button(revisao, text='Ouvir trecho selecionado', command=self._ouvir_trecho).pack(anchor='w')
+            acoes_trecho = ttk.Frame(revisao)
+            acoes_trecho.pack(fill='x')
+            ttk.Button(acoes_trecho, text='Ouvir trecho selecionado', command=self._ouvir_trecho).pack(side='left', padx=(0, 6))
+            b_regerar = ttk.Button(acoes_trecho, text='Regerar trecho selecionado', command=self._regerar_trecho)
+            b_regerar.pack(side='left')
+            self.editaveis.append((b_regerar, 'normal'))
             self.log = ScrolledText(registro, wrap='word', font=('Courier', 10), state='disabled')
             self.log.pack(fill='both', expand=True)
             lateral = ttk.Frame(body, width=280)
@@ -147,7 +156,7 @@ def iniciar_janela():
             self._campo(lateral, 'Voz embutida', 'locutor', ('Automática', 'Luis Moray', 'Alma María',
                         'Ana Florence', 'Sofia Hellen', 'Xavier Hayasaka', 'Marcos Rudaski'), livre=True)
             self._campo(lateral, 'Velocidade · 1.0 é a original', 'velocidade')
-            self._campo(lateral, 'Formatos', 'formatos', ('mp3,wav', 'wav', 'mp3'))
+            self._campo(lateral, 'Formatos', 'formatos', ('mp3,wav', 'mp3,wav,srt', 'mp3,srt', 'wav', 'mp3', 'srt', 'vtt'), livre=True)
             self._campo(lateral, 'Nome base da saída', 'saida')
             b = ttk.Button(lateral, text='Escolher saída…', command=self._escolher_saida)
             b.pack(fill='x', pady=(0, 10)); self.editaveis.append((b, 'normal'))
@@ -209,6 +218,14 @@ def iniciar_janela():
             ttk.Button(frame, text='Selecionar Python…', command=lambda: self._arquivo('python', [('Executável Python', '*')])).pack(fill='x', pady=(0, 12))
             self._campo(frame, 'Dispositivo', 'dispositivo', ('auto', 'cpu', 'mps', 'cuda'))
             self._campo(frame, 'Volume alvo · dBFS', 'volume_alvo')
+            self._campo(frame, 'Loudness final · LUFS (ex.: -16, opcional)', 'lufs')
+            self._campo(frame, 'Taxa de amostragem · Hz', 'taxa_amostragem', ('24000', '44100', '48000'))
+            self._campo(frame, 'Máximo de tentativas por trecho', 'max_tentativas')
+            self._campo(frame, 'Vozes por personagem · nome=arquivo.wav', 'vozes_personagens')
+            self._campo(frame, 'Vozes por tom · tom=arquivo.wav', 'vozes_tons')
+            self._campo(frame, 'Trilha de fundo (BGM) · opcional', 'trilha')
+            ttk.Button(frame, text='Selecionar trilha…', command=lambda: self._arquivo('trilha', [('Áudio', '*.wav *.mp3 *.flac *.m4a'), ('Todos', '*')])).pack(fill='x', pady=(0, 12))
+            self._campo(frame, 'Volume da trilha · dB (ex.: -18)', 'volume_trilha')
             self._campo(frame, 'Glossário adicional · TXT ou JSON', 'glossario')
             ttk.Button(frame, text='Selecionar glossário…', command=lambda: self._arquivo('glossario', [('Glossário', '*.txt *.json')])).pack(fill='x', pady=(0, 12))
             pausas = ttk.LabelFrame(frame, text='Pausas em milissegundos', padding=10)
@@ -220,6 +237,7 @@ def iniciar_janela():
                 ttk.Entry(pausas, textvariable=self.vars[nome], width=12).grid(row=i, column=1, pady=2)
             for nome, titulo in (('sem_normalizar', 'Desativar normalização'),
                                 ('sem_corte_silencio', 'Preservar silêncio nas bordas'),
+                                ('limpar_referencia', 'Higienizar áudio de referência via FFmpeg'),
                                 ('refazer', 'Refazer segmentos, ignorando o cache')):
                 ttk.Checkbutton(frame, text=titulo, variable=self.vars[nome]).pack(anchor='w', pady=4)
             ttk.Button(frame, text='Concluir', command=top.destroy).pack(fill='x', pady=(12, 0))
@@ -234,7 +252,7 @@ def iniciar_janela():
             if not cfg['saida'].strip(): raise ValueError('Informe o nome base da saída.')
             cfg['saida'] = str(Path(cfg['saida']).expanduser().absolute())
             cfg['locutor'] = '' if cfg['locutor'] == 'Automática' else cfg['locutor']
-            for k in ('voz', 'glossario'):
+            for k in ('voz', 'glossario', 'trilha'):
                 cfg[k] = str(Path(cfg[k]).expanduser().absolute()) if cfg[k].strip() else ''
             return cfg
 
@@ -293,10 +311,12 @@ def iniciar_janela():
                 self.editor.insert('insert', texto)
                 self.editor.focus_set()
 
-        def _iniciar(self, modo):
+        def _iniciar(self, modo, extras_cfg=None):
             if self.ocupado: return
             try:
                 cfg = self._configuracao()
+                if extras_cfg:
+                    cfg.update(extras_cfg)
                 texto = self.editor.get('1.0', 'end-1c')
                 if modo in ('validar', 'metricas'):
                     if not self.manifesto: raise ValueError('Gere um áudio ou abra um manifesto concluído.')
@@ -419,7 +439,7 @@ def iniciar_janela():
                 self.manifesto = p
                 self.resultado_ref.set('Resultado associado: ' + str(p))
                 base = str(p).removesuffix('.blocos.json')
-                self.arquivos = [base + '.' + ext for ext in ('wav', 'mp3') if Path(base + '.' + ext).is_file()]
+                self.arquivos = [base + '.' + ext for ext in ('wav', 'mp3', 'srt', 'vtt') if Path(base + '.' + ext).is_file()]
                 self.tabs.select(1); self._habilitar(True)
                 self.status.set('Manifesto carregado. Os segmentos precisam estar disponíveis no disco.')
             except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc: self._erro(str(exc))
@@ -436,8 +456,19 @@ def iniciar_janela():
                 self._abrir_caminho(self.segmentos[selecao[0]]['arquivo'])
             else: self._erro('Selecione um segmento já gerado para ouvir.')
 
+        def _regerar_trecho(self):
+            selecao = self.tree.selection()
+            if not selecao:
+                self._erro('Selecione um segmento na tabela para regerar.')
+                return
+            seg_id = self.segmentos[selecao[0]]['id']
+            self._iniciar('gerar', extras_cfg={'refazer_segmentos': str(seg_id)})
+
         def _ouvir(self):
-            if self.arquivos: self._abrir_caminho(next((p for p in self.arquivos if p.endswith('.wav')), self.arquivos[0]))
+            if self.arquivos:
+                alvo = next((p for p in self.arquivos if p.endswith('.wav')),
+                            next((p for p in self.arquivos if p.endswith('.mp3')), self.arquivos[0]))
+                self._abrir_caminho(alvo)
 
         def _abrir_caminho(self, caminho):
             try: abrir_no_sistema(caminho)

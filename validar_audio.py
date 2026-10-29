@@ -39,9 +39,9 @@ def tokenizar(texto: str, idioma: str) -> list[str]:
     """Minúsculas, números por extenso PT/ES, sem tags [tag], sem rótulos [Personagem]:, sem pontuação nem acentos."""
     t = texto
     # Remove rótulos de personagem/diálogo no início da linha, ex: [Narrador]: ou [Alma]:
-    t = re.sub(r"\[[a-zçãéíóú0-9_|\s-]+\]\s*:", " ", t, flags=re.IGNORECASE)
-    # Remove tags de expressividade como [pausa:1s], [enfase], [respiro] para comparar apenas a fala real
-    t = re.sub(r"\[[a-zçãéíóú0-9_.:\s-]+\]", " ", t, flags=re.IGNORECASE)
+    t = re.sub(r"\[[a-zçãéíóú0-9_|./\\\s-]+\]\s*:", " ", t, flags=re.IGNORECASE)
+    # Remove tags de expressividade como [pausa:1s], [enfase], [respiro], [tom:...] para comparar apenas a fala real
+    t = re.sub(r"\[[a-zçãéíóú0-9_.:/\\\s-]+\]", " ", t, flags=re.IGNORECASE)
     if idioma == "pt":
         t = normalizar_numeros_e_simbolos_pt(t)
     elif idioma == "es":

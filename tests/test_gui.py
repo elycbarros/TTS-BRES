@@ -148,6 +148,45 @@ class TestEventosPipeline(unittest.TestCase):
             self.assertFalse((p / 'saida').exists())
             self.assertIn('dez horas e trinta minutos', eventos[0]['segmentos'][0]['texto'])
 
+    def test_servidor_api_openai_compat(self):
+        import servidor_api
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp)
+            api = types.ModuleType('TTS.api')
+            api.TTS = MagicMock()
+            modelo = api.TTS.return_value.to.return_value
+            modelo.tts.return_value = np.sin(np.arange(2400) * .1) * .1
+            motor = servidor_api.MotorAPI(pasta_cache=p / 'cache_api', dispositivo='cpu')
+            with patch.dict(sys.modules, {'TTS.api': api}), \
+                    patch.object(tts, 'escolher_dispositivo', return_value='cpu'), \
+                    patch.object(tts, 'configurar_ffmpeg'):
+                wav_bytes, ctype = motor.sintetizar({
+                    'model': 'tts-1',
+                    'input': 'Olá mundo.',
+                    'voice': 'nova',
+                    'response_format': 'wav',
+                    'speed': 1.0,
+                })
+                self.assertEqual(ctype, 'audio/wav')
+                self.assertTrue(wav_bytes.startswith(b'RIFF'))
+                self.assertEqual(modelo.tts.call_count, 1)
+                self.assertEqual(modelo.tts.call_args.kwargs['speaker'], 'Alma María')
+
+                # Segunda chamada idêntica reutiliza o cache sem nova inferência
+                modelo.tts.reset_mock()
+                wav_bytes_2, _ = motor.sintetizar({
+                    'model': 'tts-1',
+                    'input': 'Olá mundo.',
+                    'voice': 'nova',
+                    'response_format': 'wav',
+                    'speed': 1.0,
+                })
+                self.assertEqual(modelo.tts.call_count, 0)
+                self.assertEqual(wav_bytes, wav_bytes_2)
+
+                with self.assertRaises(ValueError):
+                    motor.sintetizar({'input': ''})
+
 
 if __name__ == '__main__':
     unittest.main()
