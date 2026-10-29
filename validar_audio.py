@@ -10,13 +10,15 @@ Mostra a taxa de erro de palavras (WER) e as divergências (palavras trocadas,
 omitidas ou inseridas, ex.: "ponto"), apontando onde a pronúncia falhou.
 """
 import argparse
-import difflib
 import re
 import sys
 import unicodedata
 from pathlib import Path
 
-from normalizador import detectar_idioma, normalizar_numeros_e_simbolos_pt
+from normalizador import (
+    detectar_idioma, normalizar_numeros_e_simbolos_pt,
+    normalizar_numeros_e_simbolos_es,
+)
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -43,16 +45,38 @@ def tokenizar(texto: str, idioma: str) -> list[str]:
 
 
 def alinhar(ref: list[str], hip: list[str]):
-    """Retorna (erros, lista de divergências) usando alinhamento por difflib."""
-    sm = difflib.SequenceMatcher(a=ref, b=hip, autojunk=False)
-    erros, diffs = 0, []
-    for op, i1, i2, j1, j2 in sm.get_opcodes():
-        if op == "equal":
-            continue
-        r, h = ref[i1:i2], hip[j1:j2]
-        erros += max(len(r), len(h))
-        diffs.append((op, " ".join(r), " ".join(h), " ".join(ref[max(0, i1 - 3):i1])))
-    return erros, diffs
+    """WER por distância mínima de edição, com rastreio das divergências."""
+    anterior = list(range(len(hip) + 1))
+    caminhos = [bytearray([2] * (len(hip) + 1))]
+    for i, palavra in enumerate(ref, 1):
+        atual = [i]
+        ops = bytearray(len(hip) + 1)
+        ops[0] = 1
+        for j, ouvida in enumerate(hip, 1):
+            custos = (anterior[j - 1] + (palavra != ouvida),
+                      anterior[j] + 1, atual[j - 1] + 1)
+            op = min(range(3), key=custos.__getitem__)
+            atual.append(custos[op])
+            ops[j] = op
+        caminhos.append(ops)
+        anterior = atual
+    erros = anterior[-1]
+    diffs = []
+    i, j = len(ref), len(hip)
+    while i or j:
+        op = caminhos[i][j]
+        if i and j and op == 0:
+            if ref[i - 1] != hip[j - 1]:
+                diffs.append(("replace", ref[i - 1], hip[j - 1],
+                              " ".join(ref[max(0, i - 4):i - 1])))
+            i, j = i - 1, j - 1
+        elif i and (not j or op == 1):
+            diffs.append(("delete", ref[i - 1], "", " ".join(ref[max(0, i - 4):i - 1])))
+            i -= 1
+        else:
+            diffs.append(("insert", "", hip[j - 1], " ".join(ref[max(0, i - 3):i])))
+            j -= 1
+    return erros, list(reversed(diffs))
 
 
 def transcrever(audio: str, idioma: str, modelo: str) -> str:
@@ -98,7 +122,7 @@ def main() -> None:
     for op, r, h, ctx in diffs:
         rotulo = {"replace": "TROCA", "delete": "OMITIDA", "insert": "INSERIDA"}[op]
         print(f"  [{rotulo}] ...{ctx} | '{r}' -> '{h}'")
-    ponto = [h for op, r, h, _ in diffs if op in ("insert", "replace") and re.search(r"\bpunto?\b", h)]
+    ponto = [h for op, r, h, _ in diffs if op in ("insert", "replace") and re.search(r"\b(?:ponto|punto)\b", h)]
     if ponto:
         print(f"\nAVISO: palavra 'ponto/punto' falada {len(ponto)}x (pontuação final lida em voz alta).")
 

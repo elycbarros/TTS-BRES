@@ -419,10 +419,14 @@ def main():
                 "palavras": sum(contar_palavras(t) for t, _, _, _ in b),
                 "texto": " ".join(t for t, _, _, _ in b),
                 "texto_falado": " ".join(
-                    normalizar_para_fala(t, idioma=lang, glossario_extra=glossario_extra)[0]
-                    if normalizar
-                    else t
+                    limpar_para_voz(sub)
                     for t, _, lang, _ in b
+                    for parte in dividir_frases(
+                        normalizar_para_fala(t, idioma=lang, glossario_extra=glossario_extra)[0]
+                        if normalizar else t
+                    )
+                    for sub, _ in extrair_tags_expressividade(parte)
+                    if limpar_para_voz(sub)
                 ),
             }
             for i, b in enumerate(blocos, 1)
@@ -511,7 +515,8 @@ def main():
 
     for fmt in formatos:
         destino = base.with_suffix(f".{fmt}")
-        final.export(str(destino), format=fmt, **({"bitrate": "192k"} if fmt == "mp3" else {}))
+        with final.export(str(destino), format=fmt, **({"bitrate": "192k"} if fmt == "mp3" else {})):
+            pass
         print(f"Gerado: {destino}")
 
 

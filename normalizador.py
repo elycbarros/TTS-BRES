@@ -660,32 +660,31 @@ def numero_por_extenso_es(n: int) -> str:
     if n < 0:
         return "menos " + numero_por_extenso_es(-n)
 
-    grupos = [
+    def apocopar(t: str) -> str:
+        if t.endswith("veintiuno"):
+            return t[:-9] + "veintiún"
+        if t.endswith("uno"):
+            return t[:-3] + "un"
+        return t
+
+    partes = []
+    restante = n
+    for divisor, singular, plural in (
         (1_000_000_000_000, "billón", "billones"),
         (1_000_000, "millón", "millones"),
         (1_000, "mil", "mil"),
-        (1, "", ""),
-    ]
-    partes: list[str] = []
-    restante = n
-    for divisor, sing, plur in grupos:
-        if restante >= divisor:
-            q, restante = divmod(restante, divisor)
-            if divisor == 1_000 and q == 1:
-                partes.append("mil")
-            elif divisor == 1_000:
-                texto_q = _ate_999_es(q)
-                partes.append(f"{texto_q} mil")
-            elif divisor == 1_000_000:
-                if q == 1:
-                    partes.append("un millón")
-                else:
-                    texto_q = _ate_999_es(q)
-                    partes.append(f"{texto_q} millones")
-            elif divisor == 1:
-                partes.append(_ate_999_es(q))
-
-    return " ".join(p for p in partes if p)
+    ):
+        q, restante = divmod(restante, divisor)
+        if not q:
+            continue
+        if divisor == 1_000 and q == 1:
+            partes.append("mil")
+        else:
+            cantidad = apocopar(numero_por_extenso_es(q))
+            partes.append(f"{cantidad} {singular if q == 1 else plural}")
+    if restante:
+        partes.append(_ate_999_es(restante))
+    return " ".join(partes)
 
 
 def _converter_decimal_es(parte_int: str, parte_dec: str) -> str:
@@ -764,25 +763,28 @@ def normalizar_termos_tecnicos(
     siglas = SIGLAS_ES if idioma == "es" else SIGLAS_PTBR
     termos_base = TERMOS_INGLES_ES if idioma == "es" else TERMOS_INGLES_PTBR
 
-    # 1. Siglas e variáveis maiúsculas (case-sensitive)
-    for sigla, fonetica in sorted(siglas.items(), key=lambda kv: len(kv[0]), reverse=True):
-        texto = re.sub(rf"\b{re.escape(sigla)}\b", fonetica, texto)
-
-    # 2. Termos em inglês + glossário extra do usuário (case-insensitive)
-    termos = dict(termos_base)
+    # Uma única substituição impede que a pronúncia inserida seja processada de novo.
+    termos = {k.lower(): v for k, v in termos_base.items()}
     if glossario_extra:
-        # Se o glossário contiver separação por idioma ('pt'/'es')
-        if idioma in glossario_extra and isinstance(glossario_extra[idioma], dict):
-            termos.update({k.lower(): str(v) for k, v in glossario_extra[idioma].items()})
-        else:
-            termos.update({k.lower(): str(v) for k, v in glossario_extra.items() if not isinstance(v, dict)})
+        termos.update({k.lower(): str(v) for k, v in glossario_extra.items()
+                       if not isinstance(v, dict)})
+        por_idioma = glossario_extra.get(idioma, {})
+        if isinstance(por_idioma, dict):
+            termos.update({k.lower(): str(v) for k, v in por_idioma.items()})
 
-    for termo, fonetica in sorted(termos.items(), key=lambda kv: len(kv[0]), reverse=True):
-        def _preservar_caixa(m: re.Match, f: str = fonetica) -> str:
-            orig = m.group(0)
-            return (f[0].upper() + f[1:]) if (orig and orig[0].isupper() and f) else f
+    chaves = sorted(set(termos) | set(siglas), key=lambda k: (-len(k), k))
+    padrao = r"\b(?:" + "|".join(re.escape(k) for k in chaves) + r")\b"
 
-        texto = re.sub(rf"\b{re.escape(termo)}\b", _preservar_caixa, texto, flags=re.IGNORECASE)
+    def substituir(m: re.Match) -> str:
+        original = m.group(0)
+        termo = original.lower()
+        if termo in termos:
+            pronuncia = termos[termo]
+            return (pronuncia[0].upper() + pronuncia[1:]
+                    if original[0].isupper() and pronuncia else pronuncia)
+        return siglas.get(original, original)
+
+    texto = re.sub(padrao, substituir, texto, flags=re.IGNORECASE)
 
     return texto
 
@@ -822,12 +824,19 @@ def carregar_glossario(
                 d[termo.strip()] = pron.strip()
             return d
 
+    def mesclar(dados):
+        for chave, valor in dados.items():
+            if isinstance(valor, dict) and isinstance(glossario.get(chave), dict):
+                glossario[chave].update(valor)
+            else:
+                glossario[chave] = valor
+
     # Ordem de prioridade (o mais específico sobrescreve):
     # 1. glossario.json / glossario.txt na raiz do projeto
     for padrao in ("glossario.json", "glossario.txt"):
         g_proj = Path(padrao)
         if g_proj.is_file():
-            glossario.update(_ler_arquivo(g_proj))
+            mesclar(_ler_arquivo(g_proj))
 
     # 2. Glossário associado ao arquivo do texto (ex: teste1.glossario.json)
     if texto_path:
@@ -835,14 +844,14 @@ def carregar_glossario(
         for ext in (".glossario.json", ".glossario.txt"):
             g_txt = tp.with_name(f"{tp.stem}{ext}")
             if g_txt.is_file():
-                glossario.update(_ler_arquivo(g_txt))
+                mesclar(_ler_arquivo(g_txt))
 
     # 3. Caminho explicitamente passado por parâmetro (--glossario)
     if caminho:
         cp = Path(caminho)
         if not cp.is_file():
             raise FileNotFoundError(f"Arquivo de glossário não encontrado: {caminho}")
-        glossario.update(_ler_arquivo(cp))
+        mesclar(_ler_arquivo(cp))
 
     return glossario
 
