@@ -1,0 +1,20 @@
+{
+  "corpus": "avaliacao/corpus_pt_es.txt",
+  "segmentos": 8,
+  "wer_global": 0.011764705882352941,
+  "por_idioma": {
+    "pt": {
+      "palavras": 45,
+      "erros": 0,
+      "wer": 0.0
+    },
+    "es": {
+      "palavras": 40,
+      "erros": 1,
+      "wer": 0.025
+    }
+  },
+  "limite_por_segmento": 0.1,
+  "aprovado_wer": true,
+  "observacao": "Uma substituição veintiún/veintiuno no segmento 6; sem avisos acústicos. Naturalidade e sotaque não avaliados por audição."
+}

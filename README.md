@@ -8,14 +8,25 @@
 
 `XTTS v2` · `Python` · `Síntese local` · `MP3 / WAV`
 
-[Começar](#instalacao) · [Exemplos](#primeiros-passos) · [Vozes](#idiomas) · [Glossários](#glossarios) · [Referência CLI](#opcoes)
+[Começar](#instalacao) · [Exemplos](#primeiros-passos) · [Vozes](#idiomas) · [Glossários](#glossarios) · [Retomada](#retomada) · [Referência CLI](#opcoes)
 
 </div>
 
 Converta arquivos `.txt` em MP3 ou WAV com normalização de números, siglas e termos técnicos, controle de pausas e alternância de locutores. A síntese é executada localmente; o primeiro uso requer acesso à internet para baixar o modelo.
 
 > **Do texto ao áudio**
-> Arquivo `.txt` → idioma e pronúncia → síntese XTTS v2 → pausas e volume → MP3 / WAV
+> Arquivo `.txt` → validação e pronúncia → síntese ou cache → montagem em disco → MP3 / WAV
+
+### Documentação
+
+| Para… | Consulte |
+|---|---|
+| Entender os recursos, usos e limitações | [Sobre o TTSBR](docs/SOBRE.md) |
+| Instalar e gerar o primeiro áudio | [Primeiros passos](#primeiros-passos) |
+| Consultar argumentos, códigos de saída e campos JSON | [Referência de comandos e arquivos](docs/REFERENCIA.md) |
+| Entender persistência, montagem e recuperação | [Arquitetura do pipeline](docs/ARQUITETURA.md) |
+| Comparar versões e avaliar amostras PT/ES | [Guia de avaliação](avaliacao/GUIA.md) |
+| Consultar as três entregas | [Histórico de alterações](CHANGELOG.md) |
 
 <details>
 <summary><strong>Explorar a documentação</strong></summary>
@@ -23,7 +34,9 @@ Converta arquivos `.txt` em MP3 ou WAV com normalização de números, siglas e 
 - [Recursos](#recursos)
 - [Instalação](#instalacao)
 - [Primeiros passos](#primeiros-passos)
+- [Retomada e cache](#retomada)
 - [Idiomas e vozes](#idiomas)
+- [Normalização de números](#normalizacao)
 - [Pausas e direção de voz](#pausas)
 - [Glossários de pronúncia](#glossarios)
 - [Opções de síntese](#opcoes)
@@ -46,6 +59,7 @@ Converta arquivos `.txt` em MP3 ou WAV com normalização de números, siglas e 
 | Números, siglas e unidades por extenso | Tags de pausa e volume | WER por distância de edição |
 | Glossários por arquivo e idioma | Exportação MP3 e WAV | Medição de pausas e volume |
 | Pronúncia de termos técnicos | CUDA, MPS ou CPU | Comparação de vozes |
+| Datas, horários, moedas e negativos | Cache e retomada automática | Relatórios JSON por idioma e trecho |
 
 ---
 
@@ -62,6 +76,8 @@ python -m pip install -r requirements.txt
 ```
 
 No Windows, ative o ambiente com `.venv\Scripts\activate`.
+
+A avaliação inicial foi executada com Python 3.12; as dependências atuais não estão fixadas por versão. Essa medição não garante compatibilidade com todas as versões de Python. O ambiente registrado pode ser consultado em [resultado_inicial.json](avaliacao/resultado_inicial.json).
 
 A exportação MP3 usa o `ffmpeg` do sistema. Quando ele não está disponível, o pipeline tenta usar o executável fornecido por `imageio-ffmpeg`, incluído nas dependências.
 
@@ -89,9 +105,10 @@ Esse comando detecta o idioma por parágrafo e grava:
 | Arquivo | Conteúdo |
 |---|---|
 | `saida/teste1.mp3` | Áudio final. |
+| `saida/teste1.segmentos/` | Cache persistente de WAVs e metadados para retomada. |
 | `saida/teste1.blocos.json` | Estimativa de duração, divisão em blocos, texto de cada bloco e `texto_falado` após normalização, remoção de tags e limpeza para síntese. |
 
-A pasta de saída é criada automaticamente. Arquivos com o mesmo nome podem ser sobrescritos.
+A pasta de saída é criada automaticamente. Arquivos com o mesmo nome podem ser sobrescritos. Pontos no nome base são preservados: `--saida saida/aula.v2` gera `aula.v2.mp3` e `aula.v2.blocos.json`.
 
 ```bash
 # MP3 e WAV na mesma execução
@@ -115,6 +132,41 @@ Use arquivos de texto em UTF-8. Separe os parágrafos com uma linha em branco. P
 ```bash
 python tts.py --help
 ```
+
+<a id="retomada"></a>
+
+## 💾 Retomada e cache
+
+Cada trecho de fala é salvo em `<saida>.segmentos/` assim que sua síntese termina. Se a execução for interrompida, repita o comando com o mesmo caminho de saída:
+
+```bash
+python tts.py teste1.txt --saida saida/teste1 --wav
+
+# Após uma interrupção, execute novamente o mesmo comando
+python tts.py teste1.txt --saida saida/teste1 --wav
+
+# Para gerar novas versões de todos os trechos
+python tts.py teste1.txt --saida saida/teste1 --wav --refazer
+```
+
+A retomada é automática. Cada segmento tem uma chave calculada a partir do texto enviado à síntese, idioma, voz ou conteúdo da referência, velocidade, volume, corte de silêncio, dispositivo solicitado, versão do pipeline e versões das dependências. Antes de reutilizar o WAV, o programa verifica seu formato e hash SHA-256. Segmentos ausentes, incompletos ou corrompidos são gerados novamente.
+
+- **Mudança de pausas ou formato de saída:** reutiliza a fala e refaz a montagem.
+- **Mudança de texto, voz ou parâmetros de síntese:** gera os segmentos que não têm uma correspondência válida no cache.
+- **Cache completo:** monta e exporta sem carregar o XTTS.
+- **Modelo substituído manualmente:** use `--refazer`; a chave inclui o nome do modelo e versões das bibliotecas, mas não o hash dos pesos do XTTS.
+
+O manifesto `.blocos.json` registra os segmentos já processados, sua duração, localização no cache, tempos na montagem e se foram reutilizados. Também registra versões de bibliotecas e hashes das fontes para rastreabilidade; esses hashes não invalidam o cache automaticamente. O campo `estado` indica `sintetizando`, `montando` ou `concluido`; após uma interrupção, ele pode permanecer na etapa em andamento. A retomada verifica os arquivos do cache, sem depender de o manifesto estar completo.
+
+Os caminhos de segmentos nos novos manifestos são absolutos. Se mover o projeto, execute novamente a síntese no novo local para atualizar o manifesto. Consulte os [detalhes de recuperação e armazenamento](docs/ARQUITETURA.md).
+
+### Montagem com memória limitada
+
+O áudio final é montado em um WAV temporário, copiando segmentos e escrevendo silêncios em blocos pequenos. Para MP3, o FFmpeg converte esse arquivo em disco. Cada saída só substitui o arquivo anterior após sua exportação terminar; uma falha mantém os segmentos para a próxima tentativa.
+
+A montagem não acumula todo o áudio na memória. O modelo XTTS e o segmento em geração ainda consomem memória. Reserve espaço em disco para o cache, o WAV temporário e as saídas. A montagem usa WAV RIFF convencional, com limite aproximado de 4 GB.
+
+O cache permanece após a conclusão. Para liberar espaço, remova a pasta `<saida>.segmentos/` quando não precisar mais da retomada nem da validação por manifesto; isso não remove os áudios finais. Use caminhos de saída diferentes para execuções simultâneas.
 
 <a id="idiomas"></a>
 
@@ -149,6 +201,27 @@ Os rótulos são removidos antes da síntese. Apelidos como `Narrador`, `Luis`, 
 - `[es]:` força espanhol e usa a voz selecionada pelas opções do comando ou pelo idioma.
 - `[Alma]:` escolhe a voz; o idioma continua sujeito à detecção ou à opção `--idioma`.
 
+<a id="normalizacao"></a>
+
+## 🔢 Normalização de números
+
+A normalização PT/ES reconhece números, porcentagens, unidades e os formatos contextuais abaixo:
+
+| Entrada | Leitura em português |
+|---|---|
+| `29/10/2026` ou `29-10-2026` | vinte e nove de outubro de dois mil e vinte e seis |
+| `10:30` | dez horas e trinta minutos |
+| `02:01:05` | duas horas e um minuto e cinco segundos |
+| `R$ 12,50` | doze reais brasileiros e cinquenta centavos |
+| `EUR 21,50` | vinte e um euros e cinquenta centavos |
+| `-5` e `-0,5%` | menos cinco e menos zero vírgula cinco por cento |
+
+As mesmas regras produzem palavras em espanhol quando o idioma do trecho é `es`. Datas usam **dia/mês/ano com quatro dígitos no ano**; datas impossíveis são rejeitadas. Horários usam **24 horas**, com minutos e segundos de dois dígitos; valores fora de faixa são rejeitados.
+
+Valores monetários usam vírgula decimal e ponto para milhares, como `R$ 1.234,50`. São aceitos os prefixos `R$`, `BRL`, `US$`, `USD`, `$`, `EUR` e `€`; `$` é interpretado como dólar americano. Valores inteiros podem ser usados sem centavos. Os formatos monetários com ponto decimal ou símbolo após o valor não têm tratamento específico.
+
+O sinal de negativo é reconhecido antes do número, separado da palavra anterior, como `temperatura -5`. Hífens entre números, como `5-10`, não são interpretados como sinal negativo. Expressões com aparência de data ou horário são tratadas como tal; para proporções, referências de capítulos ou formatos ambíguos, escreva a leitura desejada ou use `--sem-normalizar`.
+
 <a id="pausas"></a>
 
 ## 🎛️ Pausas e direção de voz
@@ -169,6 +242,8 @@ Ele concluiu: [sussurro] tudo funcionou.
 | `[respiro]` | Insere uma pausa de 400 ms; não gera som de respiração. | `[respiracao]` |
 | `[enfase]` | Eleva o volume alvo do próximo trecho em 2,5 dB. | `[destaque]` |
 | `[sussurro]` | Reduz o volume alvo do próximo trecho em 4 dB. | `[baixo]`, `[calmo]` |
+
+**Validação das tags:** elas são interpretadas antes da divisão dos trechos, inclusive quando usam espaços como `[pausa: 1500ms]`. Tags desconhecidas, colchetes incompletos e durações inválidas interrompem a execução com uma mensagem de erro antes do carregamento do modelo. Use durações não negativas; `[pausa:0s]` é aceito.
 
 As tags de volume afetam o próximo segmento dentro do trecho dividido para síntese. Elas alteram o volume, sem controlar timbre ou emoção. O ganho aplicado também depende do teto de pico e dos limites de normalização.
 
@@ -241,10 +316,13 @@ As seções por idioma também são mescladas, preservando entradas que não for
 | `--dispositivo` | `auto` | `auto`, `cpu`, `cuda` ou `mps`. |
 | `--volume-alvo` | `-20.0` | Volume alvo em dBFS, sujeito aos limites de ganho e pico. |
 | `--glossario` | — | Glossário adicional em TXT ou JSON. |
-| `--formatos` | `mp3` | Formatos de exportação separados por vírgula, como `mp3,wav`. |
+| `--formatos` | `mp3` | Formatos aceitos: `mp3`, `wav` ou `mp3,wav`. |
+| `--refazer` | Desativado | Regenera segmentos mesmo quando existe cache válido. |
 | `--wav` | Desativado | Acrescenta WAV aos formatos escolhidos. |
 | `--sem-normalizar` | Desativado | Desativa a normalização fonética; as tags continuam sendo interpretadas. |
 | `--sem-corte-silencio` | Desativado | Preserva o silêncio residual nas bordas dos trechos. |
+
+**Validação antes da síntese:** texto vazio ou sem fala, arquivos de entrada ou referência inexistentes, formatos inválidos e idiomas de parágrafo diferentes de `pt`/`es` são rejeitados. A velocidade deve ser finita e maior que zero; o volume alvo deve ser finito e menor ou igual a zero dBFS; as pausas devem ser inteiros não negativos.
 
 ### Ajustes de pausa
 
@@ -266,6 +344,8 @@ Vírgulas dentro de um trecho não recebem necessariamente um silêncio inserido
 <a id="conferencia"></a>
 
 ## 🎧 Conferir o resultado
+
+Para comparar os modos de validação, argumentos, códigos de saída e campos dos relatórios, consulte a [referência completa](docs/REFERENCIA.md).
 
 ### Validar a fala com Whisper
 
@@ -290,7 +370,40 @@ A comparação ignora acentos, pontuação, rótulos de personagem e tags, e exp
 - Código de saída `0`: WER dentro do limite, cujo padrão é `0.10` (10%).
 - Código de saída `1`: WER acima do limite.
 
-**Interpretação:** erros do próprio Whisper entram na medida. A validação não aplica o glossário fonético completo usado na síntese e trabalha com um único idioma por execução; termos personalizados e roteiros mistos podem gerar divergências mesmo quando a fala está correta. Ouça os trechos sinalizados antes de concluir que houve falha de síntese.
+**Interpretação:** erros do próprio Whisper entram na medida. A validação com áudio e texto posicionais não aplica o glossário fonético completo usado na síntese e trabalha com um único idioma por execução; termos personalizados e roteiros mistos podem gerar divergências mesmo quando a fala está correta. Ouça os trechos sinalizados antes de concluir que houve falha de síntese.
+
+### Validar trechos bilíngues e localizar problemas
+
+Use o manifesto de uma síntese concluída:
+
+```bash
+python validar_audio.py --manifesto saida/teste1.blocos.json
+
+# Coletar métricas acústicas sem carregar Whisper
+python validar_audio.py --manifesto saida/teste1.blocos.json --somente-metricas
+
+# Escolher o relatório e o limite de WER por trecho
+python validar_audio.py --manifesto saida/teste1.blocos.json --relatorio saida/revisao.json --limite-wer 0.15
+```
+
+Cada WAV do cache é transcrito no idioma registrado no manifesto. O relatório JSON inclui transcrição, divergências, WER por segmento e por idioma, WER global ponderado, duração, RMS, pico e fração de amostras próximas da saturação. O Whisper é carregado uma vez e reutilizado entre os trechos.
+
+`inicio_s` e `fim_s` localizam cada fala na montagem WAV, incluindo pausas anteriores. Esses campos são registrados nas novas execuções; repetir uma execução antiga atualiza o manifesto usando o cache. A validação por manifesto lê os segmentos salvos, sem verificar a codificação do áudio final.
+
+O relatório padrão é `<nome-do-manifesto-sem-.json>.validacao.json`. Na validação com transcrição, a aprovação exige que **todos os segmentos** respeitem o limite; o código de saída é `1` se qualquer trecho ultrapassá-lo. `--somente-metricas` não atribui aprovação da fala e retorna `0` após coletar as métricas com sucesso.
+
+Para esse modo, use `--manifesto` sem os argumentos posicionais e sem `--idioma`, pois o idioma pertence a cada trecho. A referência é o texto efetivamente enviado à síntese: grafias fonéticas de glossários podem aumentar o WER quando o ASR escolhe a grafia convencional.
+
+### Avaliar a qualidade com amostras reais
+
+O [corpus bilíngue](avaliacao/corpus_pt_es.txt) exercita datas, horários, dinheiro, negativos, ênfase e pausas. O [guia de avaliação](avaliacao/GUIA.md) descreve a geração, as medições e uma ficha de audição para comparar versões. O [resultado inicial](avaliacao/resultado_inicial.json) registra a medição com XTTS e Whisper reais: oito segmentos, WER global de aproximadamente 1,2%, sem avisos acústicos. Esse resultado é específico da amostra e do ambiente registrados.
+
+```bash
+python tts.py avaliacao/corpus_pt_es.txt --saida saida/avaliacao_pt_es --formatos wav --dispositivo cpu
+python validar_audio.py --manifesto saida/avaliacao_pt_es.blocos.json
+```
+
+WER e métricas acústicas ajudam a localizar problemas; naturalidade, sotaque e continuidade precisam de avaliação por audição. O relatório não atribui notas subjetivas automaticamente.
 
 ### Medir pausas e volume
 
@@ -324,9 +437,9 @@ Na pasta do projeto, com o ambiente virtual ativado:
 python -m unittest discover -s tests -v
 ```
 
-A suíte cobre detecção de idioma, números PT/ES, siglas, termos técnicos, abreviações, precedência e mescla de glossários, tags, pausas, corte de silêncio, divisão de frases e cálculo do WER.
+A suíte cobre detecção de idioma, números PT/ES, siglas, termos técnicos, abreviações, precedência e mescla de glossários, tags, pausas, corte de silêncio, divisão de frases, validação antecipada da CLI, nomes de saída com pontos e cálculo do WER.
 
-Há também um teste de integração que verifica a correspondência entre o manifesto e os textos enviados à síntese, exportando um WAV temporário com sinal simulado. **Os testes não carregam o XTTS nem o Whisper e não avaliam a qualidade da voz real.**
+Os testes de integração verificam manifesto, retomada após interrupção, integridade e invalidação do cache, preservação das saídas em falhas e montagem com memória limitada. Exportam WAV e MP3 temporários com sinal simulado; a exportação MP3 usa FFmpeg real, disponível no sistema ou pelo `imageio-ffmpeg`. A suíte também verifica números contextuais, tempos dos segmentos, seleção de idioma na validação e relatórios JSON. **Os testes não carregam o XTTS nem o Whisper e não avaliam a qualidade da voz real.**
 
 <a id="problemas"></a>
 
@@ -340,6 +453,11 @@ Há também um teste de integração que verifica a correspondência entre o man
 | Falha ou desempenho inadequado na GPU | Execute com `--dispositivo cpu` e compare o resultado. O desempenho depende do equipamento e do texto. |
 | Ambiente virtual inacessível em sandbox | Verifique o acesso ao executável Python, às dependências e ao arquivo `pyvenv.cfg`. |
 | WER alto com termos técnicos | Confira a transcrição e as pronúncias personalizadas; o WER não mede naturalidade nem timbre. |
+| Cache do Numba/Librosa sem permissão de escrita | Crie uma pasta gravável e defina `NUMBA_CACHE_DIR`; veja o [guia](avaliacao/GUIA.md). |
+| Segmento ausente na validação por manifesto | Preserve o cache; se ele foi removido ou movido, repita a síntese para gerar os arquivos e atualizar os caminhos. |
+| Manifesto com estado incompleto | Repita o comando de síntese. O programa verifica o cache e retoma o trabalho. |
+| WER global baixo, mas resultado reprovado | Confira cada trecho: o limite de aprovação é aplicado individualmente. |
+| Áudio acima do limite WAV RIFF | Divida o texto em saídas menores; a montagem intermediária usa WAV mesmo para exportar apenas MP3. |
 
 Textos com mais de 450 palavras são agrupados em blocos com alvo de até 150 palavras, preservando frases completas. Uma frase isolada pode ultrapassar esse alvo; antes da síntese, os trechos normalizados são divididos para respeitar o limite de 200 caracteres adotado pelo script, preferindo cortes em vírgulas.
 
@@ -355,10 +473,15 @@ O pipeline remove pontos e outras marcas finais de cada segmento para reduzir a 
 ```text
 TTSBR/
 ├── tts.py                   # CLI, síntese e exportação
+├── audio_persistente.py     # cache verificável e montagem em disco
 ├── normalizador.py          # idioma, números e pronúncias PT/ES
-├── validar_audio.py         # transcrição Whisper e WER
+├── validar_audio.py         # transcrição Whisper e WER por idioma/trecho
+├── qualidade_audio.py       # métricas acústicas dos segmentos
+├── avaliacao/               # corpus PT/ES e protocolo de audição
 ├── medir_audio.py           # pausas e volume RMS
 ├── comparar_vozes.py        # amostras de vozes embutidas
+├── docs/                    # referência, arquitetura e banner
+├── CHANGELOG.md             # histórico das três entregas
 ├── requirements.txt         # dependências da síntese
 ├── glossario.txt.exemplo    # modelo de glossário
 ├── teste*.txt               # textos de exemplo

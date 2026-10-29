@@ -21,12 +21,15 @@ Uso:
     python tts.py texto.txt --locutor "Xavier Hayasaka" # especifica outro locutor
 """
 import argparse
-import json
+import math
 import os
 import re
 import shutil
 import sys
 import warnings
+from importlib.metadata import version, PackageNotFoundError
+
+from audio_persistente import CacheSegmentos, exportar, hash_arquivo, salvar_json
 from pathlib import Path
 
 os.environ.setdefault("COQUI_TOS_AGREED", "1")  # aceita a licença do XTTS v2
@@ -118,7 +121,9 @@ def extrair_tags_expressividade(texto: str) -> list[tuple[str, dict]]:
       - pausa/respiro viram um item próprio ("", {"pausa_extra_ms": N}) NA POSIÇÃO da tag;
       - enfase/sussurro viram {"volume_offset_db": X} aplicado ao próximo trecho de texto.
     """
-    partes = re.split(r"(\[[a-zA-Zçãéíóú0-9_.:\s-]+\])", texto)
+    if re.search(r"\[[^\]]*$|^[^\[]*\]", texto):
+        raise ValueError("Tag com colchetes incompletos.")
+    partes = re.split(r"(\[[^\[\]]*\])", texto)
     itens: list[tuple[str, dict]] = []
     volume_pendente: float | None = None
 
@@ -126,8 +131,10 @@ def extrair_tags_expressividade(texto: str) -> list[tuple[str, dict]]:
         p_strip = p.strip()
         if not p_strip:
             continue
-        m_tag = re.match(r"^\[([a-zA-Zçãéíóú0-9_.-]+)(?::([^\]]+))?\]$", p_strip)
+        m_tag = re.fullmatch(r"\[([a-zA-Zçãéíóú0-9_.-]+)(?::([^\]]*))?\]", p_strip)
         if not m_tag:
+            if "[" in p_strip or "]" in p_strip:
+                raise ValueError(f"Tag inválida: {p_strip}")
             mods = {"volume_offset_db": volume_pendente} if volume_pendente is not None else {}
             itens.append((p_strip, mods))
             volume_pendente = None
@@ -138,24 +145,44 @@ def extrair_tags_expressividade(texto: str) -> list[tuple[str, dict]]:
 
         if tag_nome in ("pausa", "silencio"):
             ms = 1000
-            try:
-                if tag_param.endswith("ms"):
-                    ms = int(float(tag_param[:-2]))
-                elif tag_param.endswith("s"):
-                    ms = int(float(tag_param[:-1]) * 1000)
-                elif tag_param.isdigit():
-                    ms = int(tag_param)
-            except ValueError:
-                pass
+            if m_tag.group(2) is not None:
+                valor = re.fullmatch(r"(\d+(?:\.\d+)?)\s*(ms|s)?", tag_param)
+                if not valor:
+                    raise ValueError(f"Duração inválida na tag {p_strip}; use 800ms ou 1.5s.")
+                duracao = float(valor.group(1)) * (1000 if valor.group(2) == "s" else 1)
+                if not math.isfinite(duracao):
+                    raise ValueError(f"Duração inválida na tag {p_strip}.")
+                ms = int(duracao)
             itens.append(("", {"pausa_extra_ms": ms}))
+        elif m_tag.group(2) is not None:
+            raise ValueError(f"A tag {tag_nome} não aceita parâmetros.")
         elif tag_nome in ("respiro", "respiracao"):
             itens.append(("", {"pausa_extra_ms": 400}))
         elif tag_nome in ("enfase", "destaque"):
             volume_pendente = 2.5
         elif tag_nome in ("sussurro", "baixo", "calmo"):
             volume_pendente = -4.0
+        else:
+            raise ValueError(f"Tag desconhecida: {p_strip}")
 
     return itens
+
+
+def preparar_segmentos(texto: str, idioma: str, normalizar: bool = True,
+                       glossario_extra: dict | None = None) -> list[tuple[str, dict]]:
+    """Interpreta tags inteiras antes de cortar apenas o texto para síntese."""
+    # Valida antes da normalização para não transformar uma tag inválida em fala.
+    extrair_tags_expressividade(texto)
+    if normalizar:
+        texto = normalizar_para_fala(texto, idioma=idioma, glossario_extra=glossario_extra)[0]
+    segmentos = []
+    for sub, mods in extrair_tags_expressividade(texto):
+        if not sub:
+            segmentos.append((sub, mods))
+            continue
+        for i, parte in enumerate(dividir_frases(sub)):
+            segmentos.append((parte, mods if i == 0 else {}))
+    return segmentos
 
 
 def dividir_frases(paragrafo: str) -> list[str]:
@@ -213,6 +240,8 @@ def montar_itens(
             # Se contiver pipe, ex: [Alma|es]
             if "|" in tag_corpo:
                 p_nome, p_lang = tag_corpo.split("|", 1)
+                if not p_nome.strip():
+                    raise ValueError("Informe o personagem antes de |, ou use [es]: / [pt]:.")
                 locutor_par = resolver_locutor(p_nome, idioma_padrao, idioma_padrao)
                 lang_par = p_lang.strip().lower()
             elif tag_corpo.lower() in ("pt", "es", "en"):
@@ -220,6 +249,8 @@ def montar_itens(
             else:
                 locutor_par = resolver_locutor(tag_corpo, idioma_padrao, idioma_padrao)
 
+        if lang_par is not None and lang_par not in ("pt", "es"):
+            raise ValueError(f"Idioma de parágrafo inválido: {lang_par!r}; use pt ou es.")
         lang = lang_par or (detectar_idioma(par) if detectar_por_paragrafo else idioma_padrao)
         if normalizar:
             par = expandir_abreviacoes(par, idioma=lang)
@@ -372,6 +403,7 @@ def main():
     ap.add_argument("--glossario", default=None, help="arquivo .json opcional com pronúncias extras")
     ap.add_argument("--sem-normalizar", action="store_true", help="desativa a normalização fonética")
     ap.add_argument("--sem-corte-silencio", action="store_true", help="não remove silêncio residual do XTTS")
+    ap.add_argument("--refazer", action="store_true", help="regenera os segmentos, ignorando o cache existente")
     ap.add_argument("--wav", action="store_true", help="gera também o arquivo .wav além do .mp3")
     ap.add_argument("--formatos", default="mp3", help="formatos de saída (padrão: mp3; ex.: mp3,wav)")
     ap.add_argument(
@@ -380,11 +412,35 @@ def main():
     )
     args = ap.parse_args()
 
-    configurar_ffmpeg()
+    for nome in ("pausa_frase", "pausa_reticencias", "pausa_ponto_virgula",
+                 "pausa_virgula", "pausa_paragrafo", "pausa_bloco"):
+        if getattr(args, nome) < 0:
+            ap.error(f"--{nome.replace('_', '-')} deve ser maior ou igual a zero.")
+    if not math.isfinite(args.velocidade) or args.velocidade <= 0:
+        ap.error("--velocidade deve ser um número finito maior que zero.")
+    if not math.isfinite(args.volume_alvo) or args.volume_alvo > 0:
+        ap.error("--volume-alvo deve ser um número finito menor ou igual a zero dBFS.")
+    formatos = list(dict.fromkeys(f.strip().lower() for f in args.formatos.split(",")))
+    if not formatos or any(f not in ("mp3", "wav") for f in formatos):
+        ap.error("--formatos aceita mp3, wav ou mp3,wav.")
+    if args.wav and "wav" not in formatos:
+        formatos.append("wav")
+    if not args.saida.strip() or Path(args.saida).is_dir():
+        ap.error("--saida deve indicar um nome base de arquivo.")
+    if args.locutor is not None:
+        args.locutor = args.locutor.strip()
+        if not args.locutor:
+            ap.error("--locutor não pode ser vazio.")
+    if args.voz and not Path(args.voz).is_file():
+        ap.error(f"Áudio de referência não encontrado: {args.voz}")
     normalizar = not args.sem_normalizar
-    glossario_extra = carregar_glossario(args.glossario, texto_path=args.texto)
-
-    texto = Path(args.texto).read_text(encoding="utf-8-sig")
+    try:
+        texto = Path(args.texto).read_text(encoding="utf-8-sig")
+        glossario_extra = carregar_glossario(args.glossario, texto_path=args.texto)
+    except (OSError, ValueError) as exc:
+        ap.error(str(exc))
+    if not texto.strip():
+        ap.error("O arquivo de texto está vazio.")
 
     # 1) Detecção de idioma e seleção de locutor
     modo_auto = args.idioma == "auto"
@@ -407,10 +463,23 @@ def main():
     )
 
     # 3) Divisão em blocos (com detecção por parágrafo quando idioma='auto')
-    blocos = dividir_em_blocos(
-        montar_itens(texto, normalizar=normalizar, idioma_padrao=idioma_global, detectar_por_paragrafo=modo_auto),
-        analise["precisa_dividir"],
-    )
+    try:
+        blocos = dividir_em_blocos(
+            montar_itens(texto, normalizar=normalizar, idioma_padrao=idioma_global,
+                         detectar_por_paragrafo=modo_auto),
+            analise["precisa_dividir"],
+        )
+        plano = [
+            [(preparar_segmentos(t, lang, normalizar, glossario_extra), fim, lang, locutor)
+             for t, fim, lang, locutor in bloco]
+            for bloco in blocos
+        ]
+    except ValueError as exc:
+        ap.error(str(exc))
+    if not any(limpar_para_voz(t) for bloco in plano for segmentos, _, _, _ in bloco
+               for t, _ in segmentos):
+        ap.error("O arquivo não contém texto para sintetizar.")
+
     manifesto = {
         "analise_previa": analise,
         "blocos": [
@@ -420,12 +489,8 @@ def main():
                 "texto": " ".join(t for t, _, _, _ in b),
                 "texto_falado": " ".join(
                     limpar_para_voz(sub)
-                    for t, _, lang, _ in b
-                    for parte in dividir_frases(
-                        normalizar_para_fala(t, idioma=lang, glossario_extra=glossario_extra)[0]
-                        if normalizar else t
-                    )
-                    for sub, _ in extrair_tags_expressividade(parte)
+                    for segmentos, _, _, _ in plano[i - 1]
+                    for sub, _ in segmentos
                     if limpar_para_voz(sub)
                 ),
             }
@@ -433,91 +498,125 @@ def main():
         ],
     }
     base = Path(args.saida)
-    base.parent.mkdir(parents=True, exist_ok=True)
     json_path = base.parent / f"{base.name}.blocos.json"
-    json_path.write_text(json.dumps(manifesto, ensure_ascii=False, indent=2), encoding="utf-8")
+    try:
+        base.parent.mkdir(parents=True, exist_ok=True)
+        salvar_json(json_path, manifesto)
+    except OSError as exc:
+        ap.error(f"Não foi possível gravar o manifesto: {exc}")
     print(f"{len(blocos)} bloco(s). Lista salva em {json_path}")
 
-    # 4) Síntese de Áudio
-    from TTS.api import TTS
+    # O modelo só é carregado quando algum segmento precisa de síntese.
+    configurar_ffmpeg()
+    cache = CacheSegmentos(base.parent / f"{base.name}.segmentos")
+    eventos = [200]
+    cursor_frames = SAMPLE_RATE // 5
+    manifesto["segmentos"] = []
+    manifesto["estado"] = "sintetizando"
+    salvar_json(json_path, manifesto)
+    modelo = None
+    versoes = {}
+    for pacote in ("coqui-tts", "torch", "numpy", "pydub"):
+        try:
+            versoes[pacote] = version(pacote)
+        except PackageNotFoundError:
+            versoes[pacote] = "indisponível"
+    referencia = hash_arquivo(args.voz) if args.voz else None
+    manifesto["configuracao"] = {
+        "python": sys.version.split()[0], "versoes": versoes,
+        "dispositivo_solicitado": args.dispositivo, "velocidade": args.velocidade,
+        "volume_alvo": args.volume_alvo, "cortar_silencio": not args.sem_corte_silencio,
+        "referencia_sha256": referencia,
+        "fontes_sha256": {nome: hash_arquivo(Path(__file__).parent / nome)
+                          for nome in ("tts.py", "normalizador.py", "audio_persistente.py")},
+    }
+    salvar_json(json_path, manifesto)
 
-    dispositivo = escolher_dispositivo(args.dispositivo)
-    print(f"Dispositivo: {dispositivo}")
-    tts = TTS("tts_models/multilingual/multi-dataset/xtts_v2").to(dispositivo)
+    def sintetizar(texto_voz, locutor, lang, volume):
+        nonlocal modelo
+        if modelo is None:
+            from TTS.api import TTS
+            dispositivo = escolher_dispositivo(args.dispositivo)
+            print(f"Dispositivo: {dispositivo}")
+            modelo = TTS("tts_models/multilingual/multi-dataset/xtts_v2").to(dispositivo)
+        voz = {"speaker_wav": args.voz} if args.voz else {"speaker": locutor}
+        wav = modelo.tts(text=texto_voz, **voz, language=lang,
+                         split_sentences=False, speed=args.velocidade)
+        return para_segmento(wav, cortar_silencio=not args.sem_corte_silencio,
+                             volume_alvo_dbfs=volume)
 
-    final = AudioSegment.silent(duration=200, frame_rate=SAMPLE_RATE)
-    for i, bloco in enumerate(blocos, 1):
-        print(f"--- Bloco {i}/{len(blocos)} ---")
-        for trecho_completo, fim_par, lang_trecho, locutor_char in bloco:
-            trecho_norm = (
-                normalizar_para_fala(trecho_completo, idioma=lang_trecho, glossario_extra=glossario_extra)[0]
-                if normalizar
-                else trecho_completo
-            )
-            partes_frase = dividir_frases(trecho_norm)
+    for i, bloco in enumerate(plano, 1):
+        print(f"--- Bloco {i}/{len(plano)} ---")
+        for segmentos_tags, fim_par, lang_trecho, locutor_char in bloco:
             locutor_trecho = locutor_char or args.locutor or VOZES_PADRAO.get(lang_trecho, locutor_global)
-            for idx_parte, trecho in enumerate(partes_frase):
-                ultimo = idx_parte == len(partes_frase) - 1
-                segmentos_tags = extrair_tags_expressividade(trecho)
-
-                for idx_seg, (sub_trecho, mods) in enumerate(segmentos_tags):
-                    ultimo_sub = ultimo and (idx_seg == len(segmentos_tags) - 1)
-                    texto_voz = limpar_para_voz(sub_trecho)
-                    if sub_trecho:
-                        # Texto sem pontuação final seguido de tag de pausa: a tag já define a pausa.
-                        seguido_de_pausa = (
-                            idx_seg + 1 < len(segmentos_tags)
-                            and "pausa_extra_ms" in segmentos_tags[idx_seg + 1][1]
-                            and not ultimo_sub
-                        )
-                        sem_pontuacao = not sub_trecho.rstrip().endswith((".", "!", "?", "…", ";", ":", ","))
-                        if seguido_de_pausa and sem_pontuacao:
-                            pausa_base = 0
-                        else:
-                            pausa_base = pausa_ms(sub_trecho, fim_par and ultimo_sub, args)
+            for idx_seg, (sub_trecho, mods) in enumerate(segmentos_tags):
+                ultimo_sub = idx_seg == len(segmentos_tags) - 1
+                texto_voz = limpar_para_voz(sub_trecho)
+                if sub_trecho:
+                    # Texto sem pontuação final seguido de tag de pausa: a tag já define a pausa.
+                    seguido_de_pausa = (
+                        idx_seg + 1 < len(segmentos_tags)
+                        and "pausa_extra_ms" in segmentos_tags[idx_seg + 1][1]
+                        and not ultimo_sub
+                    )
+                    sem_pontuacao = not sub_trecho.rstrip().endswith((".", "!", "?", "…", ";", ":", ","))
+                    if seguido_de_pausa and sem_pontuacao:
+                        pausa_base = 0
                     else:
-                        # Item de tag pura: só carrega a pausa pedida (+ pausa de parágrafo se for o último).
-                        pausa_base = args.pausa_paragrafo if (fim_par and ultimo_sub) else 0
-                    pausa_total = pausa_base + mods.get("pausa_extra_ms", 0)
+                        pausa_base = pausa_ms(sub_trecho, fim_par and ultimo_sub, args)
+                else:
+                    # Item de tag pura: só carrega a pausa pedida (+ pausa de parágrafo se for o último).
+                    pausa_base = args.pausa_paragrafo if (fim_par and ultimo_sub) else 0
+                pausa_total = pausa_base + mods.get("pausa_extra_ms", 0)
 
-                    if texto_voz:
-                        tag_info = ""
-                        if "volume_offset_db" in mods:
-                            tag_info += f"|vol:{mods['volume_offset_db']:+.1f}dB"
-                        if "pausa_extra_ms" in mods:
-                            tag_info += f"|pausa:{mods['pausa_extra_ms']}ms"
+                if texto_voz:
+                    tag_info = ""
+                    if "volume_offset_db" in mods:
+                        tag_info += f"|vol:{mods['volume_offset_db']:+.1f}dB"
+                    if "pausa_extra_ms" in mods:
+                        tag_info += f"|pausa:{mods['pausa_extra_ms']}ms"
 
-                        print(f"  [{lang_trecho}|{locutor_trecho}{tag_info}] {texto_voz[:55]}")
-                        voz = {"speaker_wav": args.voz} if args.voz else {"speaker": locutor_trecho}
-                        wav = tts.tts(
-                            text=texto_voz,
-                            **voz,
-                            language=lang_trecho,
-                            split_sentences=False,
-                            speed=args.velocidade,
-                        )
-                        vol_alvo = args.volume_alvo + mods.get("volume_offset_db", 0.0)
-                        seg = para_segmento(
-                            wav,
-                            cortar_silencio=not args.sem_corte_silencio,
-                            volume_alvo_dbfs=vol_alvo,
-                        )
-                        final += seg
+                    print(f"  [{lang_trecho}|{locutor_trecho}{tag_info}] {texto_voz[:55]}")
+                    vol_alvo = args.volume_alvo + mods.get("volume_offset_db", 0.0)
+                    parametros = {
+                        "pipeline": 1, "modelo": "tts_models/multilingual/multi-dataset/xtts_v2",
+                        "versoes": versoes, "texto": texto_voz, "idioma": lang_trecho,
+                        "locutor": None if args.voz else locutor_trecho,
+                        "referencia_sha256": referencia, "velocidade": args.velocidade,
+                        "volume_alvo": vol_alvo, "cortar_silencio": not args.sem_corte_silencio,
+                        "dispositivo_solicitado": args.dispositivo,
+                    }
+                    caminho, frames, reutilizado = cache.obter(
+                        parametros,
+                        lambda: sintetizar(texto_voz, locutor_trecho, lang_trecho, vol_alvo),
+                        refazer=args.refazer,
+                    )
+                    eventos.append(caminho)
+                    manifesto["segmentos"].append({
+                        "id": len(manifesto["segmentos"]) + 1, "bloco": i,
+                        "texto": texto_voz, "idioma": lang_trecho, "locutor": parametros["locutor"],
+                        "arquivo": str(caminho.resolve()), "chave": caminho.stem,
+                        "inicio_s": cursor_frames / SAMPLE_RATE,
+                        "fim_s": (cursor_frames + frames) / SAMPLE_RATE,
+                        "duracao_s": frames / SAMPLE_RATE, "reutilizado": reutilizado,
+                    })
+                    cursor_frames += frames
+                    salvar_json(json_path, manifesto)
+                    if reutilizado:
+                        print("    Segmento recuperado do cache.")
 
-                    if pausa_total > 0:
-                        final += AudioSegment.silent(pausa_total, frame_rate=SAMPLE_RATE)
+                if pausa_total > 0:
+                    eventos.append(pausa_total)
+                    cursor_frames += SAMPLE_RATE * pausa_total // 1000
         if i < len(blocos):
-            final += AudioSegment.silent(args.pausa_bloco, frame_rate=SAMPLE_RATE)
+            eventos.append(args.pausa_bloco)
+            cursor_frames += SAMPLE_RATE * args.pausa_bloco // 1000
 
-    formatos = [f.strip() for f in args.formatos.split(",") if f.strip()]
-    if args.wav and "wav" not in formatos:
-        formatos.append("wav")
-
-    for fmt in formatos:
-        destino = base.with_suffix(f".{fmt}")
-        with final.export(str(destino), format=fmt, **({"bitrate": "192k"} if fmt == "mp3" else {})):
-            pass
-        print(f"Gerado: {destino}")
+    manifesto["estado"] = "montando"
+    salvar_json(json_path, manifesto)
+    exportar(eventos, base, formatos, AudioSegment.converter)
+    manifesto["estado"] = "concluido"
+    salvar_json(json_path, manifesto)
 
 
 if __name__ == "__main__":

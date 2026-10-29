@@ -1,0 +1,71 @@
+# Pipeline, persistência e limites
+
+[README](../README.md) · [Referência](REFERENCIA.md) · [Avaliação](../avaliacao/GUIA.md)
+
+## Etapas
+
+```mermaid
+flowchart TD
+    A[Texto UTF-8 e opções] --> B[Validação da CLI]
+    B --> C[Parágrafos, personagens e idiomas]
+    C --> D[Normalização e interpretação das tags]
+    D --> E[Plano de segmentos de até 200 caracteres]
+    E --> F{Cache válido?}
+    F -->|Sim| I[WAV persistido]
+    F -->|Não| G[Carregamento tardio do XTTS]
+    G --> H[Síntese, corte, volume e fades]
+    H --> I
+    I --> J[Manifesto atualizado por segmento]
+    J --> K[Montagem WAV em blocos no disco]
+    K --> L[WAV final ou conversão MP3 com FFmpeg]
+    I --> M[Validação por trecho: Whisper e métricas]
+```
+
+O mesmo plano alimenta o manifesto e a geração. Tags são interpretadas antes dos cortes de comprimento, e a normalização preserva seu conteúdo. Só o primeiro segmento de texto após uma tag de volume recebe o modificador.
+
+Textos com mais de 450 palavras são agrupados em blocos com alvo de 150 palavras. Frases não são partidas nessa etapa, então uma frase pode ultrapassar o alvo. O limite de 200 caracteres é aplicado depois da normalização, antes da síntese.
+
+## Responsabilidades
+
+| Arquivo | Responsabilidade |
+|---|---|
+| `tts.py` | CLI, preparação, seleção de voz, plano, inferência e progresso. |
+| `normalizador.py` | Detecção PT/ES, abreviações, números e glossários. |
+| `audio_persistente.py` | Chaves, integridade, gravação dos segmentos, montagem e exportação. |
+| `validar_audio.py` | ASR, alinhamento, WER, agregação e relatórios. |
+| `qualidade_audio.py` | Duração, energia RMS, pico e amostras próximas da saturação. |
+| `medir_audio.py` | Segmentação de fala e pausas por limiar. |
+
+## Cache por conteúdo e parâmetros
+
+Cada WAV mono PCM de 16 bits a 24 kHz é acompanhado por um JSON. O nome é o SHA-256 dos parâmetros serializados de forma ordenada. Os metadados guardam os parâmetros, a quantidade de frames e o SHA-256 do WAV.
+
+A reutilização exige formato compatível, frames positivos, quantidade de frames correspondente, parâmetros iguais e hash do arquivo correto. Ausência ou corrupção causa nova síntese daquele segmento. O cache não depende da numeração de sua ocorrência: frases idênticas com parâmetros iguais podem compartilhar o mesmo arquivo.
+
+A chave considera texto normalizado, idioma, locutor ou hash do conteúdo da referência, velocidade, volume, corte, dispositivo solicitado, modelo, versão do pipeline e versões de Coqui TTS, Torch, NumPy e Pydub. Pausas e formatos de exportação ficam fora da chave, permitindo remontagem sem inferência.
+
+Os pesos do XTTS e hashes dos arquivos Python não estão na chave. Após substituir pesos ou alterar manualmente o processamento, use `--refazer` ou atualize a versão do pipeline no código. A retomada não é uma promessa de reprodução bit a bit entre máquinas ou ambientes.
+
+## Escritas e recuperação
+
+- Segmentos são exportados para temporários e movidos ao nome definitivo. Seus metadados são gravados em seguida. Uma interrupção entre os dois deixa uma entrada que será verificada ou refeita.
+- O manifesto é substituído por um JSON temporário, com flush e sincronização do arquivo, após cada segmento. Ele registra progresso confirmado, não uma fila completa de trabalhos pendentes.
+- Uma nova execução reconstrói o plano e verifica o cache; não depende do estado anterior do manifesto.
+- A montagem usa uma pasta temporária no diretório de saída. Cada formato concluído substitui sua saída anterior individualmente. Não há transação conjunta entre MP3 e WAV: se o segundo formato falhar, o primeiro pode já ter sido atualizado.
+- Se a inferência ou a exportação falhar, os segmentos concluídos permanecem disponíveis. `--refazer` força nova inferência; a limpeza do cache é manual.
+
+Não há bloqueio para duas execuções com o mesmo nome base. Para processamento simultâneo, use nomes de saída diferentes. Desligamento abrupto e falhas do dispositivo de armazenamento podem deixar temporários; o mecanismo não equivale a backup.
+
+## Memória e armazenamento
+
+O áudio completo não é concatenado em um `AudioSegment`. A montagem lê e escreve buffers de até 64 KiB; silêncios são escritos em blocos. O plano e o manifesto continuam em memória, e a inferência mantém o modelo e um segmento na memória.
+
+O WAV intermediário é PCM mono de 16 bits a 24 kHz: aproximadamente 48.000 bytes por segundo, além do cabeçalho. Reserve espaço para o cache, o intermediário e os formatos finais. O limite RIFF aproximado de 4 GB é verificado antes da montagem; não há saída RF64.
+
+A validação processa um segmento por vez. O Whisper é reutilizado entre trechos, enquanto o alinhamento de WER armazena caminhos de edição proporcionais ao produto dos comprimentos dos textos. A validação de um áudio final longo pode custar mais memória que a validação por segmentos.
+
+## Cobertura e limites de qualidade
+
+A suíte verifica os contratos de preparação, persistência, retomada, integridade, exportação, linha do tempo, normalização e validação. A inferência dos testes é simulada, mas a exportação MP3 usa FFmpeg real.
+
+A execução real de referência está em [resultado_inicial.json](../avaliacao/resultado_inicial.json). WER e métricas acústicas não medem naturalidade, sotaque ou preferência de voz. O protocolo de audição está no [guia de avaliação](../avaliacao/GUIA.md).

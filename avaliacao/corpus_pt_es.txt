@@ -1,0 +1,11 @@
+[Luis|pt]: A reunião será em 29/10/2026 às 10:30.
+
+[Luis|pt]: O total é R$ 12,50 e a temperatura caiu para -5 graus.
+
+[Luis|pt]: [enfase] Confira os dados [pausa:800ms] antes de continuar.
+
+[Alma|es]: La reunión será el 29/10/2026 a las 10:30.
+
+[Alma|es]: El total es EUR 21,50 y la temperatura bajó a -5 grados.
+
+[Alma|es]: [enfase] Revisa los datos [pausa:800ms] antes de continuar.

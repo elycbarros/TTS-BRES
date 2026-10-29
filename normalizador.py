@@ -12,6 +12,7 @@ Suporta Português Brasileiro ('pt') e Espanhol ('es') com detecção automátic
 from __future__ import annotations
 
 import json
+from datetime import date
 import re
 from pathlib import Path
 
@@ -573,8 +574,96 @@ def _converter_decimal(parte_int: str, parte_dec: str) -> str:
     return f"{inteiro} vírgula {dec_txt}"
 
 
+def normalizar_contextos_numericos(texto: str, idioma: str) -> str:
+    """Datas D/M/AAAA, horários 24 h, moedas explícitas e negativos PT/ES."""
+    es = idioma == "es"
+    numero = numero_por_extenso_es if es else numero_por_extenso
+    meses = ("enero febrero marzo abril mayo junio julio agosto septiembre octubre noviembre diciembre"
+             if es else "janeiro fevereiro março abril maio junho julho agosto setembro outubro novembro dezembro").split()
+
+    def data_por_extenso(m):
+        dia, mes, ano = map(int, (m[1], m[3], m[4]))
+        try:
+            date(ano, mes, dia)
+        except ValueError as exc:
+            raise ValueError(f"Data inválida: {m[0]}") from exc
+        dia_txt = ("primero" if es else "primeiro") if dia == 1 else numero(dia)
+        return f"{dia_txt} de {meses[mes - 1]} de {numero(ano)}"
+
+    texto = re.sub(r"(?<![\w/\-])(\d{1,2})([/\-])(\d{1,2})\2(\d{4})(?![\w/\-])", data_por_extenso, texto)
+
+    def feminino(n):
+        t = numero(n)
+        if es:
+            if t.endswith("veintiuno"):
+                return t[:-9] + "veintiuna"
+            return t[:-3] + "una" if t.endswith("uno") else t
+        if t.endswith("dois"):
+            return t[:-4] + "duas"
+        return t[:-2] + "uma" if t.endswith("um") else t
+
+    def horario(m):
+        h, minuto, segundo = int(m[1]), int(m[2]), int(m[3] or 0)
+        if h > 23 or minuto > 59 or segundo > 59:
+            raise ValueError(f"Horário inválido: {m[0]}")
+        hora = "hora" if h == 1 else "horas"
+        partes = [f"{feminino(h)} {hora}"]
+        def masculino(n):
+            t = numero(n)
+            if es and t.endswith('veintiuno'):
+                return t[:-9] + 'veintiún'
+            return t[:-3] + 'un' if es and t.endswith('uno') else t
+        if minuto:
+            partes.append(f"{masculino(minuto)} {'minuto' if minuto == 1 else 'minutos'}")
+        if segundo:
+            nome = ("segundo" if segundo == 1 else "segundos")
+            partes.append(f"{masculino(segundo)} {nome}")
+        return (" y " if es else " e ").join(partes)
+
+    texto = re.sub(r"(?<![\w:])(\d{1,2}):(\d{2})(?::(\d{2}))?(?![\w:])", horario, texto)
+
+    moedas = {
+        "brl": (("real brasileiro", "reais brasileiros"), ("real brasileño", "reales brasileños")),
+        "usd": (("dólar americano", "dólares americanos"), ("dólar estadounidense", "dólares estadounidenses")),
+        "eur": (("euro", "euros"), ("euro", "euros")),
+    }
+
+    def dinheiro(m):
+        simbolo, valor = m[1].lower(), m[2]
+        moeda = {"r$": "brl", "us$": "usd", "$": "usd", "€": "eur"}.get(simbolo, simbolo)
+        negativo = valor.startswith('-')
+        valor = valor.lstrip('-').replace('.', '')
+        inteiro, _, fracao = valor.partition(',')
+        n, centavos = int(inteiro), int(fracao.ljust(2, '0') or '0')
+        if n > 999_999_999_999:
+            raise ValueError(f"Valor monetário fora do limite: {m[0]}")
+        def quantidade(n):
+            t = numero(n)
+            if es and t.endswith('veintiuno'):
+                return t[:-9] + 'veintiún'
+            if es and t.endswith('uno'):
+                return t[:-3] + 'un'
+            return t
+        singular, plural = moedas[moeda][1 if es else 0]
+        conector = " de " if n >= 1_000_000 and n % 1_000_000 == 0 else " "
+        partes = [f"{quantidade(n)}{conector}{singular if n == 1 else plural}"]
+        if centavos:
+            nome = ('céntimo' if moeda == 'eur' and es else 'centavo')
+            partes.append(f"{quantidade(centavos)} {nome if centavos == 1 else nome + 's'}")
+        return ("menos " if negativo else "") + (" y " if es else " e ").join(partes)
+
+    texto = re.sub(
+        r"(?<!\w)(R\$|US\$|BRL\b|USD\b|EUR\b|€|\$)\s*(-?(?:\d{1,3}(?:\.\d{3})+|\d+)(?:,\d{1,2})?)(?!\d|,\d|\.\d)",
+        dinheiro, texto, flags=re.IGNORECASE,
+    )
+    # Sinal unário: não converte o hífen de intervalos como 5-10.
+    texto = re.sub(r"(?<![\w])-(?=\d)", "menos ", texto)
+    return texto
+
+
 def normalizar_numeros_e_simbolos_pt(texto: str) -> str:
     """Converte porcentagens, unidades e números para extenso em português."""
+    texto = normalizar_contextos_numericos(texto, "pt")
     # Milhares com ponto (ex.: 1.000, 10.000, 1.500.000)
     texto = re.sub(r"\b(\d{1,3})(?:\.(\d{3}))+\b", lambda m: m.group(0).replace(".", ""), texto)
 
@@ -704,6 +793,7 @@ def _converter_decimal_es(parte_int: str, parte_dec: str) -> str:
 
 def normalizar_numeros_e_simbolos_es(texto: str) -> str:
     """Converte porcentagens, unidades e números para extenso em espanhol."""
+    texto = normalizar_contextos_numericos(texto, "es")
     # Milhares com ponto (ex.: 1.000, 10.000, 1.500.000)
     texto = re.sub(r"\b(\d{1,3})(?:\.(\d{3}))+\b", lambda m: m.group(0).replace(".", ""), texto)
 

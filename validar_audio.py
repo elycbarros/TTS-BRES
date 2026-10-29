@@ -10,6 +10,13 @@ Mostra a taxa de erro de palavras (WER) e as divergências (palavras trocadas,
 omitidas ou inseridas, ex.: "ponto"), apontando onde a pronúncia falhou.
 """
 import argparse
+import json
+import math
+import wave
+from functools import lru_cache
+
+from audio_persistente import salvar_json
+from qualidade_audio import medir_segmento
 import re
 import sys
 import unicodedata
@@ -29,17 +36,17 @@ def _sem_acento(s: str) -> str:
 
 
 def tokenizar(texto: str, idioma: str) -> list[str]:
-    """Minúsculas, números por extenso (pt), sem tags [tag], sem rótulos [Personagem]:, sem pontuação nem acentos."""
-    t = texto.lower()
+    """Minúsculas, números por extenso PT/ES, sem tags [tag], sem rótulos [Personagem]:, sem pontuação nem acentos."""
+    t = texto
     # Remove rótulos de personagem/diálogo no início da linha, ex: [Narrador]: ou [Alma]:
-    t = re.sub(r"\[[a-za-zçãéíóú0-9_|\s-]+\]\s*:", " ", t)
+    t = re.sub(r"\[[a-zçãéíóú0-9_|\s-]+\]\s*:", " ", t, flags=re.IGNORECASE)
     # Remove tags de expressividade como [pausa:1s], [enfase], [respiro] para comparar apenas a fala real
-    t = re.sub(r"\[[a-za-zçãéíóú0-9_.:\s-]+\]", " ", t)
+    t = re.sub(r"\[[a-zçãéíóú0-9_.:\s-]+\]", " ", t, flags=re.IGNORECASE)
     if idioma == "pt":
         t = normalizar_numeros_e_simbolos_pt(t)
     elif idioma == "es":
         t = normalizar_numeros_e_simbolos_es(t)
-    t = _sem_acento(t)
+    t = _sem_acento(t.lower())
     t = re.sub(r"[^a-z0-9\s]", " ", t)
     return t.split()
 
@@ -79,34 +86,104 @@ def alinhar(ref: list[str], hip: list[str]):
     return erros, list(reversed(diffs))
 
 
-def transcrever(audio: str, idioma: str, modelo: str) -> str:
-    import librosa
+@lru_cache(maxsize=1)
+def carregar_transcritor(modelo: str):
     import torch
     from transformers import pipeline
+    return pipeline("automatic-speech-recognition", model=modelo,
+                    device="cuda" if torch.cuda.is_available() else "cpu", chunk_length_s=30)
 
-    dispositivo = "cuda" if torch.cuda.is_available() else "cpu"
-    asr = pipeline(
-        "automatic-speech-recognition",
-        model=modelo,
-        device=dispositivo,
-        chunk_length_s=30,
-    )
+
+def transcrever(audio: str, idioma: str, modelo: str) -> str:
+    import librosa
+    asr = carregar_transcritor(modelo)
     sinal, _ = librosa.load(audio, sr=16000, mono=True)
-    saida = asr(
-        {"raw": sinal, "sampling_rate": 16000},
-        generate_kwargs={"language": idioma, "task": "transcribe"},
-    )
+    saida = asr({"raw": sinal, "sampling_rate": 16000},
+                generate_kwargs={"language": idioma, "task": "transcribe"})
     return saida["text"]
+
+
+def validar_manifesto(caminho, modelo="openai/whisper-small", limite=0.10, somente_metricas=False):
+    caminho = Path(caminho).resolve()
+    dados = json.loads(caminho.read_text(encoding="utf-8"))
+    if dados.get("estado") != "concluido" or not dados.get("segmentos"):
+        raise ValueError("O manifesto deve conter uma síntese concluída com segmentos.")
+    arquivos = []
+    for seg in dados["segmentos"]:
+        if seg.get("idioma") not in ("pt", "es") or not isinstance(seg.get("texto"), str):
+            raise ValueError("Segmento sem texto ou idioma PT/ES válido.")
+        arquivo = Path(seg["arquivo"])
+        if not arquivo.is_absolute():
+            arquivo = caminho.parent / arquivo
+        if not arquivo.is_file():
+            raise ValueError(f"Segmento não encontrado: {arquivo}")
+        arquivos.append(arquivo)
+    resultados, totais = [], {}
+    for seg, arquivo in zip(dados["segmentos"], arquivos):
+        item = {"id": seg["id"], "idioma": seg["idioma"], "texto": seg["texto"],
+                "arquivo": str(arquivo), "inicio_s": seg.get("inicio_s"),
+                "fim_s": seg.get("fim_s"), "metricas": medir_segmento(arquivo)}
+        if not somente_metricas:
+            ouvido = transcrever(str(arquivo), seg["idioma"], modelo)
+            ref, hip = tokenizar(seg["texto"], seg["idioma"]), tokenizar(ouvido, seg["idioma"])
+            erros, diffs = alinhar(ref, hip)
+            wer = erros / max(1, len(ref))
+            item.update(transcricao=ouvido, palavras_referencia=len(ref), erros=erros,
+                        wer=wer, aprovado=wer <= limite, divergencias=diffs)
+            grupo = totais.setdefault(seg["idioma"], {"palavras": 0, "erros": 0})
+            grupo["palavras"] += len(ref)
+            grupo["erros"] += erros
+        resultados.append(item)
+    for grupo in totais.values():
+        grupo["wer"] = grupo["erros"] / max(1, grupo["palavras"])
+    palavras = sum(g["palavras"] for g in totais.values())
+    erros = sum(g["erros"] for g in totais.values())
+    return {"manifesto": str(caminho), "modelo_asr": None if somente_metricas else modelo,
+            "limite_wer": limite, "somente_metricas": somente_metricas,
+            "wer_global": erros / max(1, palavras) if not somente_metricas else None,
+            "por_idioma": totais, "segmentos": resultados,
+            "aprovado": all(s["aprovado"] for s in resultados) if not somente_metricas else None}
 
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
-    ap.add_argument("audio", help="arquivo de áudio gerado (mp3/wav)")
-    ap.add_argument("texto", help="texto original (.txt)")
+    ap.add_argument("audio", nargs="?", help="arquivo de áudio gerado (mp3/wav)")
+    ap.add_argument("texto", nargs="?", help="texto original (.txt)")
     ap.add_argument("--idioma", default="auto", choices=["auto", "pt", "es"])
     ap.add_argument("--modelo", default="openai/whisper-small", help="modelo Whisper (HuggingFace)")
     ap.add_argument("--limite-wer", type=float, default=0.10, help="WER máximo aceitável (padrão: 0.10)")
+    ap.add_argument("--manifesto", help="valida os WAVs de um .blocos.json, no idioma de cada trecho")
+    ap.add_argument("--relatorio", help="caminho do relatório JSON")
+    ap.add_argument("--somente-metricas", action="store_true", help="mede os segmentos sem carregar Whisper")
     args = ap.parse_args()
+    if not math.isfinite(args.limite_wer) or args.limite_wer < 0:
+        ap.error("--limite-wer deve ser finito e não negativo.")
+    if args.manifesto:
+        if args.audio or args.texto or args.idioma != "auto":
+            ap.error("Use --manifesto sem áudio/texto posicionais ou --idioma; cada trecho tem seu idioma.")
+        try:
+            relatorio = validar_manifesto(args.manifesto, args.modelo, args.limite_wer, args.somente_metricas)
+            origem = Path(args.manifesto)
+            destino = Path(args.relatorio) if args.relatorio else origem.with_name(origem.stem + ".validacao.json")
+            destino.parent.mkdir(parents=True, exist_ok=True)
+            salvar_json(destino, relatorio)
+        except (OSError, ValueError, KeyError, TypeError, wave.Error, EOFError) as exc:
+            ap.error(str(exc))
+        for item in relatorio["segmentos"]:
+            medida = "métricas acústicas" if args.somente_metricas else f"WER {item['wer']:.1%}"
+            tempo = f"{item['inicio_s']:.2f}s" if item['inicio_s'] is not None else "tempo indisponível"
+            print(f"#{item['id']} [{item['idioma']}] {tempo}: {medida}")
+        print(f"Relatório: {destino}")
+        if args.somente_metricas:
+            print("Métricas coletadas; qualidade da fala não aprovada automaticamente.")
+        else:
+            print(f"WER global: {relatorio['wer_global']:.1%} | "
+                  + ("OK" if relatorio['aprovado'] else "REPROVADO"))
+        sys.exit(1 if relatorio["aprovado"] is False else 0)
+    if not args.audio or not args.texto:
+        ap.error("Informe áudio e texto, ou use --manifesto.")
+    if args.somente_metricas or args.relatorio:
+        ap.error("--somente-metricas e --relatorio requerem --manifesto.")
 
     original = Path(args.texto).read_text(encoding="utf-8-sig")
     idioma = detectar_idioma(original) if args.idioma == "auto" else args.idioma
