@@ -6,6 +6,11 @@ As entradas abaixo consolidam as entregas locais. Não representam uma versão p
 
 ### Evoluções de estúdio, confiabilidade e ecossistema (Fases 1, 2 e 3)
 
+- Normalização fonética natural de moedas em português ("real/reais" e "dólar/dólares", sem a inserção redundante de "brasileiro/americano").
+- Garantia de normalização Unicode NFC em todo o pipeline, evitando falhas de pronúncia de caracteres acentuados (como til `~`) no macOS.
+- Guia fonético de tonicidade para palavras paroxítonas no XTTS v2 (`\banos\b` → `ânos`) e preservação de cadência em vírgulas terminais de cláusulas.
+- Compactação inteligente de micro-silêncios internos gerados pelo modelo antes de pontuações ditadas (ex.: "vírgula").
+- Suporte a novos apelidos de locutores de estúdio (`Tammie` e `Ema` mapeados para `Tammie Ema`).
 - Exportação nativa de legendas sincronizadas por segmento (`.srt` e `.vtt`) via `--srt`, `--vtt` ou `--formatos` (liberado).
 - Masterização final em LUFS (`--lufs`, padrão EBU R128 via FFmpeg) e seleção de taxa de amostragem (`--taxa-amostragem` em 24000, 44100 ou 48000 Hz) (liberado).
 - Diálogos com múltiplas vozes clonadas por personagem (`--vozes-personagens` ou `[arquivo.wav|pt]:`), com cache SHA-256 individual por locutor (liberado).

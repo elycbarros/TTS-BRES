@@ -223,7 +223,7 @@ Coloque o personagem no início de cada parágrafo:
 [Alma|es]: Excelente noticia. Ahora podemos iniciar las pruebas.
 ```
 
-Os rótulos são removidos antes da síntese. Apelidos como `Narrador`, `Luis`, `Alma`, `Marcos`, `Gilberto`, `Ana`, `Sofia` e `Xavier` são convertidos para nomes de vozes embutidas. Também é possível informar o nome completo de um locutor.
+Os rótulos são removidos antes da síntese. Apelidos como `Narrador`, `Luis`, `Alma`, `Marcos`, `Gilberto`, `Ana`, `Sofia`, `Tammie` e `Xavier` são convertidos para nomes de vozes embutidas. Também é possível informar o nome completo de um locutor.
 
 - `[Alma|es]:` escolhe a personagem e força espanhol naquele parágrafo.
 - `[es]:` força espanhol e usa a voz selecionada pelas opções do comando ou pelo idioma.
@@ -241,7 +241,7 @@ A normalização PT/ES reconhece números, porcentagens, unidades e os formatos 
 | `29/10/2026` ou `29-10-2026` | vinte e nove de outubro de dois mil e vinte e seis |
 | `10:30` | dez horas e trinta minutos |
 | `02:01:05` | duas horas e um minuto e cinco segundos |
-| `R$ 12,50` | doze reais brasileiros e cinquenta centavos |
+| `R$ 12,50` | doze reais e cinquenta centavos |
 | `EUR 21,50` | vinte e um euros e cinquenta centavos |
 | `-5` e `-0,5%` | menos cinco e menos zero vírgula cinco por cento |
 

@@ -59,7 +59,7 @@ O normalizador converte elementos escritos para formas mais adequadas à fala:
 | `16GB` | dezesseis gigabytes |
 | `29/10/2026` | vinte e nove de outubro de dois mil e vinte e seis |
 | `10:30` | dez horas e trinta minutos |
-| `R$ 12,50` | doze reais brasileiros e cinquenta centavos |
+| `R$ 12,50` | doze reais e cinquenta centavos |
 | `-5` | menos cinco |
 | `GPU`, `API`, `IA` | Pronúncias cadastradas para as siglas. |
 

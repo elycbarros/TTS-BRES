@@ -26,6 +26,7 @@ import os
 import re
 import shutil
 import sys
+import unicodedata
 import warnings
 from importlib.metadata import version, PackageNotFoundError
 
@@ -98,6 +99,8 @@ PERSONAGENS_MAP = {
     "daisy": "Daisy Studious",
     "gracie": "Gracie Wise",
     "ferran": "Ferran Simen",
+    "tammie": "Tammie Ema",
+    "ema": "Tammie Ema",
 }
 
 
@@ -384,11 +387,16 @@ def dividir_em_blocos(itens: list[tuple[str, bool, str, str | None]], dividir: b
 
 
 def limpar_para_voz(trecho: str) -> str:
-    """Texto enviado ao XTTS: sem pontuação final (evita leitura literal da palavra 'ponto'
-    ou 'punto') e sem ; e :. É aplicado depois de pausa_ms, que usa a pontuação original."""
-    t = re.sub(r"\s*[;:]\s*", ", ", trecho)
+    """Texto enviado ao XTTS: sem pontuação de encerramento de frase (evita leitura literal
+    da palavra 'ponto' ou 'punto') e sem ; e :, mas preservando vírgula ao final de cláusulas
+    para manter a cadência e prosódia naturais."""
+    t = unicodedata.normalize("NFC", trecho)
+    teve_virgula = bool(re.search(r",\s*$", t))
+    t = re.sub(r"\s*[;:]\s*", ", ", t)
     t = re.sub(r"[\s.,;:…]+$", "", t)
     t = re.sub(r"\.{2,}", ",", t)
+    if teve_virgula:
+        t = t + ","
     return t.strip()
 
 
@@ -425,15 +433,66 @@ def escolher_dispositivo(pedido: str = "auto") -> str:
     return pedido
 
 
+def compactar_silencios_internos(
+    arr: np.ndarray,
+    sr: int = SAMPLE_RATE,
+    limiar: float = 0.008,
+    max_pausa_ms: int = 150,
+    alvo_ms: int = 90,
+) -> np.ndarray:
+    """Encurta pausas internas excessivas geradas pelo XTTS (ex.: antes de 'vírgula' em decimais)."""
+    janela = max(1, sr // 100)
+    n_janelas = len(arr) // janela
+    max_j = max(1, max_pausa_ms // 10)
+    alvo_j = max(1, min(max_j, alvo_ms // 10))
+    if n_janelas <= max_j + 2:
+        return arr
+
+    recorte = arr[: n_janelas * janela].reshape(n_janelas, janela)
+    rms = np.sqrt(np.mean(recorte * recorte, axis=1))
+
+    partes: list[np.ndarray] = []
+    i = 0
+    alterado = False
+    while i < n_janelas:
+        if rms[i] <= limiar:
+            j = i
+            while j < n_janelas and rms[j] <= limiar:
+                j += 1
+            if i > 0 and j < n_janelas and (j - i) > max_j:
+                metade = alvo_j // 2
+                resto = alvo_j - metade
+                partes.append(arr[i * janela : (i + metade) * janela])
+                partes.append(arr[(j - resto) * janela : j * janela])
+                alterado = True
+            else:
+                partes.append(arr[i * janela : j * janela])
+            i = j
+        else:
+            j = i
+            while j < n_janelas and rms[j] > limiar:
+                j += 1
+            partes.append(arr[i * janela : j * janela])
+            i = j
+
+    if not alterado:
+        return arr
+    if n_janelas * janela < len(arr):
+        partes.append(arr[n_janelas * janela :])
+    return np.concatenate(partes) if partes else arr
+
+
 def cortar_silencio_pontas(
     wav: np.ndarray,
     sr: int = SAMPLE_RATE,
     limiar_db: float = -42.0,
     margem_ini_ms: int = 30,
     margem_fim_ms: int = 90,
+    max_pausa_interna_ms: int = 150,
+    pausa_interna_alvo_ms: int = 90,
 ) -> np.ndarray:
-    """Remove o excesso de silêncio residual do XTTS v2 nas pontas,
-    preservando margens naturais (30 ms início, 90 ms fim)."""
+    """Remove o excesso de silêncio residual do XTTS v2 nas pontas e compacta pausas
+    internas excessivas, preservando margens naturais (30 ms início, 90 ms fim)."""
     arr = np.asarray(wav, dtype=np.float32)
     if arr.size == 0:
         return arr
@@ -457,7 +516,17 @@ def cortar_silencio_pontas(
 
     ini_amostra = max(0, int(ativos[0]) * janela - (sr * margem_ini_ms) // 1000)
     fim_amostra = min(len(arr), int(ativos[-1] + 1) * janela + (sr * margem_fim_ms) // 1000)
-    return arr[ini_amostra:fim_amostra]
+    recortado = arr[ini_amostra:fim_amostra]
+    if max_pausa_interna_ms > 0:
+        limiar_interno = max(ref * (10.0 ** (-38.0 / 20.0)), 0.005)
+        recortado = compactar_silencios_internos(
+            recortado,
+            sr=sr,
+            limiar=limiar_interno,
+            max_pausa_ms=max_pausa_interna_ms,
+            alvo_ms=pausa_interna_alvo_ms,
+        )
+    return recortado
 
 
 def para_segmento(

@@ -39,10 +39,10 @@ class TestNumerosContextuais(unittest.TestCase):
                 normalizar_para_fala(entrada, idioma='es')
 
     def test_moedas_negativos_e_pontuacao(self):
-        casos = [('pt', 'R$ 12,50.', 'doze reais brasileiros e cinquenta centavos.'),
+        casos = [('pt', 'R$ 12,50.', 'doze reais e cinquenta centavos.'),
                  ('es', 'EUR 21,50.', 'veintiún euros y cincuenta céntimos.'),
                  ('es', 'USD 1,01', 'un dólar estadounidense y un centavo'),
-                 ('pt', 'R$ -1.234,05', 'menos mil duzentos e trinta e quatro reais brasileiros e cinco centavos'),
+                 ('pt', 'R$ -1.234,05', 'menos mil duzentos e trinta e quatro reais e cinco centavos'),
                  ('pt', '-5 e -0,5%', 'menos cinco e menos zero vírgula cinco por cento')]
         for lang, entrada, esperado in casos:
             with self.subTest(entrada=entrada):
@@ -52,7 +52,7 @@ class TestNumerosContextuais(unittest.TestCase):
         texto, _ = normalizar_para_fala('Em 29/10/2026 [pausa:1.5s] às 10:30.', idioma='pt')
         self.assertIn('[pausa:1.5s]', texto)
         self.assertEqual(va.tokenizar('[Luis|pt]: R$ 12,50 [ENFASE]', 'pt'),
-                         va.tokenizar('doze reais brasileiros e cinquenta centavos', 'pt'))
+                         va.tokenizar('doze reais e cinquenta centavos', 'pt'))
 
 
 class TestValidacaoSegmentada(unittest.TestCase):

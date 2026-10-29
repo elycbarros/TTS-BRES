@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 from datetime import date
 import re
+import unicodedata
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -43,7 +44,7 @@ _TOKENS_PT = {
 
 def detectar_idioma(texto: str) -> str:
     """Detecta automaticamente se o texto está em espanhol ('es') ou português ('pt')."""
-    t = texto.lower()
+    t = unicodedata.normalize("NFC", texto).lower()
     # Marcadores exclusivos
     if any(c in t for c in ("¿", "¡", "ñ")):
         return "es"
@@ -553,7 +554,7 @@ def numero_por_extenso(n: int) -> str:
     if len(partes) == 1:
         return partes[0][1]
 
-    resultado = ", ".join(p[1] for p in partes[:-1])
+    resultado = " ".join(p[1] for p in partes[:-1])
     ult_q, ult_txt = partes[-1]
     conector = " e " if (ult_q < 100 or ult_q % 100 == 0) else " "
     return f"{resultado}{conector}{ult_txt}"
@@ -623,8 +624,8 @@ def normalizar_contextos_numericos(texto: str, idioma: str) -> str:
     texto = re.sub(r"(?<![\w:])(\d{1,2}):(\d{2})(?::(\d{2}))?(?![\w:])", horario, texto)
 
     moedas = {
-        "brl": (("real brasileiro", "reais brasileiros"), ("real brasileño", "reales brasileños")),
-        "usd": (("dólar americano", "dólares americanos"), ("dólar estadounidense", "dólares estadounidenses")),
+        "brl": (("real", "reais"), ("real brasileño", "reales brasileños")),
+        "usd": (("dólar", "dólares"), ("dólar estadounidense", "dólares estadounidenses")),
         "eur": (("euro", "euros"), ("euro", "euros")),
     }
 
@@ -838,6 +839,7 @@ def normalizar_numeros_e_simbolos_es(texto: str) -> str:
 # ---------------------------------------------------------------------------
 def expandir_abreviacoes(texto: str, idioma: str = "pt") -> str:
     """Expande abreviações com ponto antes de dividir o texto em frases."""
+    texto = unicodedata.normalize("NFC", texto)
     lista = ABREVIACOES_ES if idioma == "es" else ABREVIACOES_PT
     for padrao, subst in lista:
         texto = re.sub(padrao, subst, texto, flags=re.IGNORECASE)
@@ -850,6 +852,7 @@ def normalizar_termos_tecnicos(
     glossario_extra: dict[str, str] | None = None,
 ) -> str:
     """Aplica siglas (case-sensitive) e termos técnicos em inglês (case-insensitive)."""
+    texto = unicodedata.normalize("NFC", texto)
     siglas = SIGLAS_ES if idioma == "es" else SIGLAS_PTBR
     termos_base = TERMOS_INGLES_ES if idioma == "es" else TERMOS_INGLES_PTBR
 
@@ -956,6 +959,7 @@ def normalizar_para_fala(
     Retorna:
         tuple[texto_normalizado, idioma_detectado_ou_usado]
     """
+    texto = unicodedata.normalize("NFC", texto)
     lang = detectar_idioma(texto) if idioma == "auto" else idioma
 
     def _normalizar_trecho(trecho: str) -> str:
@@ -963,6 +967,9 @@ def normalizar_para_fala(
         t = normalizar_termos_tecnicos(t, idioma=lang, glossario_extra=glossario_extra)
         if lang == "pt":
             t = normalizar_numeros_e_simbolos_pt(t)
+            # Guia fonético para paroxítonas suscetíveis a deslocamento tônico no XTTS v2
+            t = re.sub(r"\banos\b", "ânos", t)
+            t = re.sub(r"\bAnos\b", "Ânos", t)
         elif lang == "es":
             t = normalizar_numeros_e_simbolos_es(t)
         return t

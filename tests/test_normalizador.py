@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Testes de unidade para o normalizador fonético e detector de idioma (PT e ES)."""
 import tempfile
+import unicodedata
 import unittest
 from pathlib import Path
 
@@ -62,6 +63,20 @@ class TestNumerosPT(unittest.TestCase):
 
         t3 = normalizar_numeros_e_simbolos_pt("Constante pi é 3,14")
         self.assertIn("três vírgula quatorze", t3)
+
+    def test_numeros_grandes_sem_virgula_interna_e_unicode_nfc(self):
+        extenso = numero_por_extenso(1_250_500)
+        self.assertNotIn(",", extenso)
+        self.assertIn("um milhão duzentos e cinquenta mil e quinhentos", extenso)
+
+        texto_nfd = unicodedata.normalize("NFD", "São milhões de criações que não param.")
+        normalizado, lang = normalizar_para_fala(texto_nfd, idioma="auto")
+        self.assertEqual(lang, "pt")
+        self.assertEqual(normalizado, unicodedata.normalize("NFC", normalizado))
+        self.assertIn("São", normalizado)
+        self.assertIn("milhões", normalizado)
+        self.assertIn("criações", normalizado)
+        self.assertIn("não", normalizado)
 
 
 class TestNumerosES(unittest.TestCase):
@@ -141,6 +156,12 @@ class TestGlossarioCustomizado(unittest.TestCase):
             res, _ = normalizar_para_fala("Banco PostgreSQL com FastAPI", idioma="pt", glossario_extra=g)
             self.assertIn("pós-gre", res.lower())
             self.assertIn("fást-ápi", res.lower())
+
+    def test_guia_fonetico_anos(self):
+        # Garante que "anos" recebe acento circunflexo guia em português para evitar oxítona no XTTS v2
+        res, _ = normalizar_para_fala("dois anos e dez anos", idioma="pt")
+        self.assertIn("dois ânos", res)
+        self.assertIn("dez ânos", res)
 
 
 if __name__ == "__main__":

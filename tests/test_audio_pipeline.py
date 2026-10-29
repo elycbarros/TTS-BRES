@@ -55,6 +55,8 @@ class TestOperacoesAudioEPausas(unittest.TestCase):
         self.assertEqual(limpar_para_voz("Olá mundo."), "Olá mundo")
         self.assertEqual(limpar_para_voz("Frase com reticências..."), "Frase com reticências")
         self.assertEqual(limpar_para_voz("Item um; item dois:"), "Item um, item dois")
+        # Garante que vírgulas ao final de cláusula são preservadas para prosódia contínua
+        self.assertEqual(limpar_para_voz("nos últimos dois anos,"), "nos últimos dois anos,")
 
     def test_pausas_ms_corretas(self):
         args = MockArgs()
@@ -79,6 +81,20 @@ class TestOperacoesAudioEPausas(unittest.TestCase):
         self.assertLess(len(recortado), len(sinal_completo))
         # Mas deve preservar a maior parte do áudio útil (pelo menos 0.9s)
         self.assertGreater(len(recortado), int(0.9 * sr))
+
+    def test_compactar_silencio_interno_excessivo(self):
+        sr = 24000
+        tempo = np.linspace(0, 0.4, int(0.4 * sr), dtype=np.float32)
+        fala1 = 0.5 * np.sin(2 * np.pi * 440 * tempo)
+        pausa_longa = np.zeros(int(0.5 * sr), dtype=np.float32)
+        fala2 = 0.5 * np.sin(2 * np.pi * 440 * tempo)
+
+        sinal = np.concatenate([fala1, pausa_longa, fala2])
+        recortado = cortar_silencio_pontas(sinal, sr=sr)
+
+        # Deve reduzir a pausa interna de 500ms para ~120ms, mas manter ambas as falas (~0.8s + ~0.12s)
+        self.assertLess(len(recortado), int(1.05 * sr))
+        self.assertGreater(len(recortado), int(0.88 * sr))
 
     def test_divisao_de_frases_longas(self):
         paragrafo = (
