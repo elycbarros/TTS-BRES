@@ -4,7 +4,7 @@
 
 [README](../README.md) · [Referência de comandos](REFERENCIA.md) · [Arquitetura](ARQUITETURA.md) · [Avaliação de qualidade](../avaliacao/GUIA.md)
 
-O TTSBR é uma ferramenta de linha de comando que transforma arquivos de texto em narração, com suporte a português brasileiro e espanhol. Ele utiliza o XTTS v2 para gerar a voz e acrescenta preparação do texto, controle de pausas, persistência dos segmentos e ferramentas de avaliação.
+O TTSBR oferece uma ferramenta de linha de comando e uma interface gráfica local inicial para transformar arquivos de texto em narração, com suporte a português brasileiro e espanhol. Ele utiliza o XTTS v2 para gerar a voz e acrescenta preparação do texto, controle de pausas, persistência dos segmentos e ferramentas de avaliação.
 
 Seu uso principal é a produção de narrações a partir de roteiros preparados. O projeto não escreve o conteúdo e não dispensa a revisão do áudio por audição.
 
@@ -155,9 +155,15 @@ O **WER** é a taxa de palavras substituídas, omitidas ou inseridas em relaçã
 
 A [medição inicial](../avaliacao/resultado_inicial.json), realizada com XTTS e Whisper reais, contém oito segmentos e WER global de aproximadamente 1,2%, sem avisos acústicos. Esse resultado vale para aquele corpus e ambiente. Naturalidade e sotaque não foram avaliados por audição. O [guia de avaliação](../avaliacao/GUIA.md) inclui um protocolo para essa revisão.
 
+## Interface gráfica local
+
+A [GUI inicial](GUI.md) permite abrir e editar roteiros, configurar a síntese, conferir o texto preparado, gerar uma amostra, acompanhar segmentos, solicitar interrupção após o trecho e revisar os resultados. A reprodução usa o player padrão do sistema. A janela usa Tkinter e o trabalho pesado ocorre em outro processo, com o mesmo pipeline da CLI.
+
+É uma versão para uso pessoal, sem instalador ou Python embutido. Pode usar um Python para a janela e outro para o ambiente do modelo. Preferências e snapshots são salvos em `local/gui/`, ignorado pelo Git. Os testes automatizados cobrem a integração; a janela e o player ainda precisam de validação no desktop, incluindo Windows.
+
 ## O que o projeto não oferece atualmente
 
-- Interface gráfica, editor de roteiro ou painel de revisão.
+- Instaladores independentes, player embutido ou edição de áudio por forma de onda.
 - API HTTP, serviço multiusuário ou fila de processamento.
 - Streaming de voz em tempo real.
 - Importação direta de PDF, Word, páginas da web ou imagens.

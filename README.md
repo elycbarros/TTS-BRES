@@ -8,7 +8,7 @@
 
 `XTTS v2` · `Python` · `Síntese local` · `MP3 / WAV`
 
-[Começar](#instalacao) · [Exemplos](#primeiros-passos) · [Vozes](#idiomas) · [Glossários](#glossarios) · [Retomada](#retomada) · [Referência CLI](#opcoes)
+[Interface gráfica](#gui) · [Começar](#instalacao) · [Exemplos](#primeiros-passos) · [Vozes](#idiomas) · [Glossários](#glossarios) · [Retomada](#retomada) · [Referência CLI](#opcoes)
 
 </div>
 
@@ -22,6 +22,7 @@ Converta arquivos `.txt` em MP3 ou WAV com normalização de números, siglas e 
 | Para… | Consulte |
 |---|---|
 | Entender os recursos, usos e limitações | [Sobre o TTSBR](docs/SOBRE.md) |
+| Usar a janela local no macOS ou Windows | [Guia da GUI](docs/GUI.md) |
 | Instalar e gerar o primeiro áudio | [Primeiros passos](#primeiros-passos) |
 | Consultar argumentos, códigos de saída e campos JSON | [Referência de comandos e arquivos](docs/REFERENCIA.md) |
 | Entender persistência, montagem e recuperação | [Arquitetura do pipeline](docs/ARQUITETURA.md) |
@@ -34,6 +35,7 @@ Converta arquivos `.txt` em MP3 ou WAV com normalização de números, siglas e 
 
 - [Recursos](#recursos)
 - [Instalação](#instalacao)
+- [Interface gráfica](#gui)
 - [Primeiros passos](#primeiros-passos)
 - [Retomada e cache](#retomada)
 - [Idiomas e vozes](#idiomas)
@@ -92,6 +94,20 @@ python -m pip install transformers librosa soundfile
 
 > **Primeira execução**
 > O XTTS v2 é baixado automaticamente. Os scripts de síntese definem `COQUI_TOS_AGREED=1`, sinalizando aceite dos termos do modelo. Consulte esses termos antes de usar o modelo.
+
+<a id="gui"></a>
+
+## 🖥️ Interface gráfica local
+
+A primeira GUI oferece editor, configurações, conferência do texto normalizado, amostra de voz, progresso, retomada e revisão de segmentos. A reprodução abre o player padrão do sistema.
+
+```bash
+python3 gui.py
+```
+
+No Windows, use `py -3 gui.py`. Há também os iniciadores `abrir_gui.command` e `abrir_gui.bat`. A janela precisa de Python com Tkinter; o Python do ambiente de síntese pode ser selecionado em **Ajustes avançados**. Preferências e snapshots ficam em `local/gui/`, fora do Git.
+
+Esta é uma versão inicial para uso pessoal, sem instalador. A integração com o pipeline é testada automaticamente; a janela precisa de validação no desktop do usuário, incluindo Windows. Consulte [requisitos, uso e limitações da GUI](docs/GUI.md).
 
 <a id="primeiros-passos"></a>
 
@@ -159,7 +175,7 @@ A retomada é automática. Cada segmento tem uma chave calculada a partir do tex
 - **Cache completo:** monta e exporta sem carregar o XTTS.
 - **Modelo substituído manualmente:** use `--refazer`; a chave inclui o nome do modelo e versões das bibliotecas, mas não o hash dos pesos do XTTS.
 
-O manifesto `.blocos.json` registra os segmentos já processados, sua duração, localização no cache, tempos na montagem e se foram reutilizados. Também registra versões de bibliotecas e hashes das fontes para rastreabilidade; esses hashes não invalidam o cache automaticamente. O campo `estado` indica `sintetizando`, `montando` ou `concluido`; após uma interrupção, ele pode permanecer na etapa em andamento. A retomada verifica os arquivos do cache, sem depender de o manifesto estar completo.
+O manifesto `.blocos.json` registra os segmentos já processados, sua duração, localização no cache, tempos na montagem e se foram reutilizados. Também registra versões de bibliotecas e hashes das fontes para rastreabilidade; esses hashes não invalidam o cache automaticamente. O campo `estado` indica `sintetizando`, `montando`, `interrompido` ou `concluido`; após uma interrupção, ele pode permanecer na etapa em andamento. A retomada verifica os arquivos do cache, sem depender de o manifesto estar completo.
 
 Os caminhos de segmentos nos novos manifestos são absolutos. Se mover o projeto, execute novamente a síntese no novo local para atualizar o manifesto. Consulte os [detalhes de recuperação e armazenamento](docs/ARQUITETURA.md).
 
@@ -320,12 +336,15 @@ As seções por idioma também são mescladas, preservando entradas que não for
 | `--volume-alvo` | `-20.0` | Volume alvo em dBFS, sujeito aos limites de ganho e pico. |
 | `--glossario` | — | Glossário adicional em TXT ou JSON. |
 | `--formatos` | `mp3` | Formatos aceitos: `mp3`, `wav` ou `mp3,wav`. |
+| `--analisar` | Desativado | Mostra o plano normalizado sem inferência nem saídas finais. |
 | `--refazer` | Desativado | Regenera segmentos mesmo quando existe cache válido. |
 | `--wav` | Desativado | Acrescenta WAV aos formatos escolhidos. |
 | `--sem-normalizar` | Desativado | Desativa a normalização fonética; as tags continuam sendo interpretadas. |
 | `--sem-corte-silencio` | Desativado | Preserva o silêncio residual nas bordas dos trechos. |
 
 **Validação antes da síntese:** texto vazio ou sem fala, arquivos de entrada ou referência inexistentes, formatos inválidos e idiomas de parágrafo diferentes de `pt`/`es` são rejeitados. A velocidade deve ser finita e maior que zero; o volume alvo deve ser finito e menor ou igual a zero dBFS; as pausas devem ser inteiros não negativos.
+
+Para conferir o plano sem carregar o XTTS nem gravar saídas, use `python tts.py exemplos/narracao_pt.txt --analisar`.
 
 ### Ajustes de pausa
 
@@ -503,6 +522,11 @@ Dependências, modelos e conteúdos de terceiros permanecem sujeitos às respect
 
 ```text
 TTSBR/
+├── gui.py                   # janela local com Tkinter/ttk
+├── gui_core.py              # snapshots e comunicação com subprocessos
+├── gui_worker.py            # processo de análise, síntese e validação
+├── abrir_gui.command        # iniciador macOS
+├── abrir_gui.bat            # iniciador Windows
 ├── tts.py                   # CLI, síntese e exportação
 ├── audio_persistente.py     # cache verificável e montagem em disco
 ├── normalizador.py          # idioma, números e pronúncias PT/ES

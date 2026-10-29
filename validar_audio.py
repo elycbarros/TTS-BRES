@@ -103,7 +103,7 @@ def transcrever(audio: str, idioma: str, modelo: str) -> str:
     return saida["text"]
 
 
-def validar_manifesto(caminho, modelo="openai/whisper-small", limite=0.10, somente_metricas=False):
+def validar_manifesto(caminho, modelo="openai/whisper-small", limite=0.10, somente_metricas=False, on_event=None):
     caminho = Path(caminho).resolve()
     dados = json.loads(caminho.read_text(encoding="utf-8"))
     if dados.get("estado") != "concluido" or not dados.get("segmentos"):
@@ -134,6 +134,9 @@ def validar_manifesto(caminho, modelo="openai/whisper-small", limite=0.10, somen
             grupo["palavras"] += len(ref)
             grupo["erros"] += erros
         resultados.append(item)
+        if on_event is not None:
+            on_event({"tipo": "validacao_segmento", "segmento": item,
+                      "concluidos": len(resultados), "total": len(arquivos)})
     for grupo in totais.values():
         grupo["wer"] = grupo["erros"] / max(1, grupo["palavras"])
     palavras = sum(g["palavras"] for g in totais.values())

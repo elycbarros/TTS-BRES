@@ -1,6 +1,6 @@
 # Referência de comandos e arquivos
 
-[README](../README.md) · [Arquitetura](ARQUITETURA.md) · [Avaliação](../avaliacao/GUIA.md)
+[README](../README.md) · [GUI](GUI.md) · [Arquitetura](ARQUITETURA.md) · [Avaliação](../avaliacao/GUIA.md)
 
 Todos os exemplos partem da raiz do projeto, com o ambiente virtual ativado. Caminhos com espaços devem ficar entre aspas.
 
@@ -24,6 +24,7 @@ python tts.py --help
 
 A tabela completa de opções de síntese e pausas está no [README](../README.md#opcoes).
 
+- `--analisar` prepara e imprime os segmentos, sem carregar XTTS nem criar manifesto, cache ou áudio. As validações da entrada continuam ativas.
 - `--saida` é o nome **base**. `aula.v2` gera `aula.v2.mp3`; `aula.mp3` gera `aula.mp3.mp3` se MP3 estiver selecionado.
 - Formatos são convertidos para minúsculas e duplicatas são removidas. Listas com itens vazios, como `mp3,`, são rejeitadas.
 - `--wav` acrescenta WAV à lista; com `--formatos wav`, ele não acrescenta MP3.
@@ -79,7 +80,7 @@ Variações ortográficas e erros do Whisper afetam a medida. Na amostra inicial
 |---|---|
 | `analise_previa` | Quantidade estimada de palavras, duração, necessidade de divisão, idioma dominante e voz global. |
 | `blocos` | Identificador, palavras, texto e `texto_falado` de cada bloco. |
-| `estado` | `sintetizando`, `montando` ou `concluido`. Pode permanecer na etapa interrompida. |
+| `estado` | `sintetizando`, `montando`, `interrompido` ou `concluido`. Pode permanecer na etapa interrompida. |
 | `configuracao` | Python, versões de bibliotecas, dispositivo solicitado, velocidade, volume, corte, hash da referência e hashes de três arquivos do pipeline. |
 | `segmentos` | Falas concluídas na execução, incluindo trechos recuperados do cache. |
 

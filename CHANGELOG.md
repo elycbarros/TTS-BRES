@@ -4,6 +4,16 @@
 
 As entradas abaixo consolidam as três entregas locais. Não representam uma versão publicada nem garantem que todas as alterações já tenham sido incluídas em um commit.
 
+### Interface gráfica inicial
+
+- Janela pessoal com Tkinter/ttk para roteiro, configurações, amostra, progresso e revisão.
+- Workers isolados com Python configurável e eventos estruturados, reutilizando a CLI.
+- Conferência de roteiro com `--analisar`, sem inferência ou arquivos finais.
+- Interrupção cooperativa entre segmentos, com cache preservado e retomada.
+- Reprodução pelo player do sistema, validação por trecho e métricas pela GUI.
+- Preferências e snapshots privados em `local/gui/`; iniciadores para macOS e Windows.
+- Testes da integração sem display; validação visual no desktop ainda pendente.
+
 ### Arquivos locais e privacidade
 
 - Regras de ignore ampliadas para roteiros locais, referências de voz, credenciais, modelos e artefatos gerados.

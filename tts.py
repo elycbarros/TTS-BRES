@@ -379,7 +379,15 @@ def para_segmento(
     return seg.fade_in(10).fade_out(25)
 
 
-def main():
+class SinteseInterrompida(Exception):
+    """Interrupção solicitada entre segmentos, com cache preservado."""
+
+
+def main(argv=None, on_event=None, should_stop=None):
+    def emitir(tipo, **dados):
+        if on_event is not None:
+            on_event({"tipo": tipo, **dados})
+
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
     ap.add_argument("texto", help="arquivo .txt com o texto pronto")
     ap.add_argument("--voz", default=None, help="áudio de referência (wav, 6-30 s) para clonar a voz")
@@ -410,7 +418,8 @@ def main():
         "--dispositivo", default="auto", choices=["auto", "cpu", "cuda", "mps"],
         help="auto = CUDA se houver, senão CPU (mps é experimental no Mac)",
     )
-    args = ap.parse_args()
+    ap.add_argument("--analisar", action="store_true", help="confere e mostra o plano sem carregar o XTTS ou gravar saídas")
+    args = ap.parse_args(argv)
 
     for nome in ("pausa_frase", "pausa_reticencias", "pausa_ponto_virgula",
                  "pausa_virgula", "pausa_paragrafo", "pausa_bloco"):
@@ -497,6 +506,21 @@ def main():
             for i, b in enumerate(blocos, 1)
         ],
     }
+    resumo_segmentos = [
+        {"id": n, "bloco": bloco, "texto": limpar_para_voz(sub), "idioma": lang,
+         "locutor": locutor or args.locutor or VOZES_PADRAO[lang]}
+        for n, (bloco, sub, lang, locutor) in enumerate(
+            ((i, sub, lang, locutor)
+             for i, b in enumerate(plano, 1)
+             for segmentos, _, lang, locutor in b
+             for sub, _ in segmentos if limpar_para_voz(sub)), 1)
+    ]
+    emitir("plano", total=len(resumo_segmentos), segmentos=resumo_segmentos)
+    if args.analisar:
+        for seg in resumo_segmentos:
+            print(f"  #{seg['id']} [{seg['idioma']}|{seg['locutor']}] {seg['texto']}")
+        return
+
     base = Path(args.saida)
     json_path = base.parent / f"{base.name}.blocos.json"
     try:
@@ -532,9 +556,18 @@ def main():
     }
     salvar_json(json_path, manifesto)
 
+    def verificar_interrupcao():
+        if should_stop is not None and should_stop():
+            manifesto["estado"] = "interrompido"
+            salvar_json(json_path, manifesto)
+            emitir("interrompido", concluidos=len(manifesto["segmentos"]),
+                   total=len(resumo_segmentos))
+            raise SinteseInterrompida("Interrompido entre segmentos; repita a geração para retomar.")
+
     def sintetizar(texto_voz, locutor, lang, volume):
         nonlocal modelo
         if modelo is None:
+            emitir("etapa", etapa="modelo", mensagem="Carregando o modelo de voz…")
             from TTS.api import TTS
             dispositivo = escolher_dispositivo(args.dispositivo)
             print(f"Dispositivo: {dispositivo}")
@@ -586,6 +619,8 @@ def main():
                         "volume_alvo": vol_alvo, "cortar_silencio": not args.sem_corte_silencio,
                         "dispositivo_solicitado": args.dispositivo,
                     }
+                    verificar_interrupcao()
+                    emitir("etapa", etapa="sintese", mensagem=f"Processando segmento {len(manifesto['segmentos']) + 1}…")
                     caminho, frames, reutilizado = cache.obter(
                         parametros,
                         lambda: sintetizar(texto_voz, locutor_trecho, lang_trecho, vol_alvo),
@@ -600,6 +635,8 @@ def main():
                         "fim_s": (cursor_frames + frames) / SAMPLE_RATE,
                         "duracao_s": frames / SAMPLE_RATE, "reutilizado": reutilizado,
                     })
+                    emitir("segmento", segmento=manifesto["segmentos"][-1],
+                           concluidos=len(manifesto["segmentos"]), total=len(resumo_segmentos))
                     cursor_frames += frames
                     salvar_json(json_path, manifesto)
                     if reutilizado:
@@ -612,11 +649,15 @@ def main():
             eventos.append(args.pausa_bloco)
             cursor_frames += SAMPLE_RATE * args.pausa_bloco // 1000
 
+    verificar_interrupcao()
+    emitir("etapa", etapa="montagem", mensagem="Montando e exportando o áudio…")
     manifesto["estado"] = "montando"
     salvar_json(json_path, manifesto)
     exportar(eventos, base, formatos, AudioSegment.converter)
     manifesto["estado"] = "concluido"
     salvar_json(json_path, manifesto)
+    emitir("resultado", manifesto=str(json_path.resolve()),
+           arquivos=[str((base.parent / f"{base.name}.{fmt}").resolve()) for fmt in formatos])
 
 
 if __name__ == "__main__":

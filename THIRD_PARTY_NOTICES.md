@@ -21,6 +21,10 @@ A biblioteca `coqui-tts`, responsável pela integração de síntese, tem licen�
 
 - [Repositório da biblioteca](https://github.com/idiap/coqui-ai-TTS)
 
+## Interface gráfica
+
+A GUI utiliza Tkinter e Tcl/Tk fornecidos pela instalação de Python. Esses componentes mantêm seus próprios termos de licença; o projeto não os redistribui nesta versão. Consulte as licenças da distribuição de Python utilizada.
+
 ## Outras dependências e modelos
 
 O projeto utiliza bibliotecas como Torch, Torchaudio, NumPy, Pydub e ImageIO-FFmpeg. As ferramentas auxiliares também utilizam Transformers, Librosa e SoundFile. Cada pacote e suas dependências transitivas mantêm suas próprias licenças e avisos.

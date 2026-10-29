@@ -1,6 +1,6 @@
 # Pipeline, persistência e limites
 
-[README](../README.md) · [Referência](REFERENCIA.md) · [Avaliação](../avaliacao/GUIA.md)
+[README](../README.md) · [GUI](GUI.md) · [Referência](REFERENCIA.md) · [Avaliação](../avaliacao/GUIA.md)
 
 ## Etapas
 
@@ -29,6 +29,7 @@ Textos com mais de 450 palavras são agrupados em blocos com alvo de 150 palavra
 
 | Arquivo | Responsabilidade |
 |---|---|
+| `gui.py`, `gui_core.py`, `gui_worker.py` | Janela Tkinter, snapshots e processamento isolado, com eventos estruturados. |
 | `tts.py` | CLI, preparação, seleção de voz, plano, inferência e progresso. |
 | `normalizador.py` | Detecção PT/ES, abreviações, números e glossários. |
 | `audio_persistente.py` | Chaves, integridade, gravação dos segmentos, montagem e exportação. |
@@ -69,3 +70,11 @@ A validação processa um segmento por vez. O Whisper é reutilizado entre trech
 A suíte verifica os contratos de preparação, persistência, retomada, integridade, exportação, linha do tempo, normalização e validação. A inferência dos testes é simulada, mas a exportação MP3 usa FFmpeg real.
 
 A execução real de referência está em [resultado_inicial.json](../avaliacao/resultado_inicial.json). WER e métricas acústicas não medem naturalidade, sotaque ou preferência de voz. O protocolo de audição está no [guia de avaliação](../avaliacao/GUIA.md).
+
+## Interface e callbacks
+
+A GUI não importa o pipeline no processo da janela. Um worker usa o Python configurado para chamar `tts.main(argv, on_event, should_stop)`. Os callbacks são opcionais; os comandos anteriores continuam disponíveis. A análise usa `--analisar`, encerrando após a preparação do plano.
+
+Eventos comunicam plano, etapa, segmentos concluídos, resultado ou interrupção. A thread leitora do subprocesso envia eventos a uma fila limitada; o event loop do Tkinter é o único responsável por alterar widgets. Os logs visíveis também têm limite de tamanho.
+
+A interrupção é cooperativa, verificada antes de processar um segmento e antes da montagem. Após solicitação, o trecho em andamento termina, o cache é preservado e o manifesto recebe `interrompido`. Downloads, chamadas de inferência e exportação não são interrompidos no meio. O processo de validação emite progresso por segmento, reutilizando o mesmo transcritor.
