@@ -45,7 +45,7 @@ Roteiros podem alternar personagens:
 [Alma|es]: Ahora podemos iniciar las pruebas.
 ```
 
-Os rótulos são removidos antes da síntese. A prioridade de escolha é: referência em `--voz`, personagem explícito, `--locutor` e voz padrão do idioma. Uma referência em `--voz` vale para todos os trechos.
+Os rótulos são removidos antes da síntese. As referências de áudio são escolhidas nesta ordem: tom, personagem e referência global em `--voz`. Sem referência, a voz embutida vem do personagem, de `--locutor` ou do padrão do idioma. A referência global não substitui as específicas.
 
 **Limites:** a detecção usa regras e vocabulário. Frases curtas, palavras compartilhadas e parágrafos com idiomas misturados podem ser classificados incorretamente. A alternância automática acontece por parágrafo, não palavra por palavra. O pipeline público é preparado para PT/ES; ele não expõe todos os idiomas que o modelo subjacente possa oferecer.
 
@@ -154,11 +154,17 @@ O **WER** é a taxa de palavras substituídas, omitidas ou inseridas em relaçã
 
 **Limites:** o WER não mede naturalidade, emoção, compreensão, sotaque ou semelhança com a referência de voz. Erros do Whisper e diferenças de escrita entram na conta. Grafias fonéticas podem divergir da ortografia escolhida pelo transcritor. A validação por manifesto não verifica a codificação MP3 nem a montagem final. O modo de métricas não concede aprovação da fala, e as medidas acústicas não substituem audição.
 
-A [medição inicial](../avaliacao/resultado_inicial.json), realizada com XTTS e Whisper reais, contém oito segmentos e WER global de aproximadamente 1,2%, sem avisos acústicos. Esse resultado vale para aquele corpus e ambiente. Naturalidade e sotaque não foram avaliados por audição. O [guia de avaliação](../avaliacao/GUIA.md) inclui um protocolo para essa revisão.
+A [medição inicial](../avaliacao/resultado_inicial.json), realizada com XTTS e Whisper reais, contém oito segmentos e WER global de aproximadamente 1,2%, sem avisos acústicos. Esse resultado é histórico, anterior às alterações recentes de normalização, e vale apenas para aquele corpus e ambiente; não mede a revisão atual. Naturalidade e sotaque não foram avaliados por audição. O [guia de avaliação](../avaliacao/GUIA.md) inclui um protocolo para essa revisão.
+
+A normalização LUFS usa uma passagem de `loudnorm`, sem certificação independente do alvo final. A trilha é mixada em mono e reduzida durante a fala. Esses recursos exigem revisão do arquivo exportado: as métricas por manifesto continuam examinando os segmentos anteriores ao processamento final.
+
+O mecanismo de repetição automática detecta algumas anomalias de silêncio e duração. Quando as tentativas se esgotam, ele pode conservar um segmento ainda anômalo, com aviso. Não equivale a um detector completo de erros de fala.
+
+O servidor HTTP local oferece compatibilidade parcial para `POST /v1/audio/speech`, sem autenticação nem streaming. Os nomes de voz são aliases locais e o campo `model` não troca o motor XTTS. A execução de sínteses é serializada. Consulte os [exemplos e limites da API](../README.md#api).
 
 ## Interface gráfica local
 
-A [GUI inicial](GUI.md) permite abrir e editar roteiros, configurar a síntese, conferir o texto preparado, gerar uma amostra, acompanhar segmentos, solicitar interrupção após o trecho e revisar os resultados. A reprodução usa o player padrão do sistema. A janela usa Tkinter e o trabalho pesado ocorre em outro processo, com o mesmo pipeline da CLI.
+A [GUI inicial](GUI.md) permite abrir e editar roteiros, configurar a síntese, conferir o texto preparado, gerar uma amostra, acompanhar segmentos, solicitar interrupção após o trecho e revisar os resultados. A GUI também permite regenerar um segmento selecionado e configurar LUFS, taxa de amostragem, trilha e referências por personagem ou tom. A reprodução usa o player padrão do sistema. A janela usa Tkinter e o trabalho pesado ocorre em outro processo, com o mesmo pipeline da CLI.
 
 É uma versão para uso pessoal, sem instalador ou Python embutido. Pode usar um Python para a janela e outro para o ambiente do modelo. Preferências e snapshots são salvos em `local/gui/`, ignorado pelo Git. Os testes automatizados cobrem a integração; a janela e o player ainda precisam de validação no desktop, incluindo Windows.
 

@@ -36,6 +36,8 @@ O validador lê os WAVs do cache: ele verifica a fala antes da codificação MP3
 
 ## Resultado inicial registrado
 
+Este resultado é histórico e anterior às alterações posteriores de normalização e processamento. Ele não certifica a qualidade da revisão atual. Para avaliar uma nova revisão, gere outra saída, valide-a e preserve o relatório em um arquivo separado.
+
 A medição em [resultado_inicial.json](resultado_inicial.json) usou o corpus com XTTS v2 e Whisper reais, em CPU:
 
 | Medida | Resultado |

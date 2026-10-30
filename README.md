@@ -6,7 +6,7 @@
 
 **Texto para voz em português brasileiro e espanhol.**
 
-`XTTS v2` · `Python` · `Síntese local` · `MP3 / WAV`
+`XTTS v2` · `Python` · `Síntese local` · `MP3 / WAV` · `SRT / VTT`
 
 [Interface gráfica](#gui) · [Começar](#instalacao) · [Exemplos](#primeiros-passos) · [Vozes](#idiomas) · [Glossários](#glossarios) · [Retomada](#retomada) · [Referência CLI](#opcoes)
 
@@ -28,7 +28,7 @@ Converta arquivos `.txt` em MP3 ou WAV com normalização de números, siglas e 
 | Entender persistência, montagem e recuperação | [Arquitetura do pipeline](docs/ARQUITETURA.md) |
 | Comparar versões e avaliar amostras PT/ES | [Guia de avaliação](avaliacao/GUIA.md) |
 | Entender as licenças do código e do modelo | [Licença](#licenca) e [componentes de terceiros](THIRD_PARTY_NOTICES.md) |
-| Consultar as três entregas | [Histórico de alterações](CHANGELOG.md) |
+| Consultar as alterações do projeto | [Histórico de alterações](CHANGELOG.md) |
 | Ver sugestões e próximas melhorias planejadas | [Roadmap do projeto](docs/ROADMAP.md) |
 
 <details>
@@ -44,6 +44,8 @@ Converta arquivos `.txt` em MP3 ou WAV com normalização de números, siglas e 
 - [Pausas e direção de voz](#pausas)
 - [Glossários de pronúncia](#glossarios)
 - [Opções de síntese](#opcoes)
+- [Legendas e processamento final](#pos-processamento)
+- [API HTTP local](#api)
 - [Conferir o resultado](#conferencia)
 - [Testes](#testes)
 - [Limitações e solução de problemas](#problemas)
@@ -100,7 +102,7 @@ python -m pip install transformers librosa soundfile
 
 ## 🖥️ Interface gráfica local
 
-A primeira GUI oferece editor, configurações, conferência do texto normalizado, amostra de voz, progresso, retomada e revisão de segmentos. A reprodução abre o player padrão do sistema.
+A GUI oferece editor, configurações, conferência do texto normalizado, amostra de voz, progresso, retomada, revisão e regeneração seletiva de segmentos. Os ajustes avançados incluem LUFS, taxa de amostragem, trilha de fundo, tentativas automáticas e mapeamento de referências por personagem e tom. A reprodução abre o player padrão do sistema.
 
 ```bash
 python3 gui.py
@@ -193,7 +195,7 @@ Os caminhos de segmentos nos novos manifestos são absolutos. Se mover o projeto
 
 O áudio final é montado em um WAV temporário, copiando segmentos e escrevendo silêncios em blocos pequenos. Para MP3, o FFmpeg converte esse arquivo em disco. Cada saída só substitui o arquivo anterior após sua exportação terminar; uma falha mantém os segmentos para a próxima tentativa.
 
-A montagem não acumula todo o áudio na memória. O modelo XTTS e o segmento em geração ainda consomem memória. Reserve espaço em disco para o cache, o WAV temporário e as saídas. A montagem usa WAV RIFF convencional, com limite aproximado de 4 GB.
+A montagem não acumula todo o áudio na memória. O modelo XTTS e o segmento em geração ainda consomem memória. Reserve espaço em disco para o cache, o WAV temporário e as saídas. A montagem de áudio usa WAV RIFF convencional, com limite aproximado de 4 GB. Exportações somente de legendas não montam esse intermediário.
 
 O cache permanece após a conclusão. Para liberar espaço, remova a pasta `<saida>.segmentos/` quando não precisar mais da retomada nem da validação por manifesto; isso não remove os áudios finais. Use caminhos de saída diferentes para execuções simultâneas.
 
@@ -210,7 +212,9 @@ Em `--idioma auto`, cada parágrafo recebe uma detecção independente. As vozes
 
 A detecção usa regras e vocabulário. Para textos curtos ou ambíguos, informe `--idioma pt` ou `--idioma es`, ou use um rótulo de idioma no parágrafo.
 
-`--locutor` define a voz dos trechos sem personagem explícito. `--voz` usa uma gravação de referência para todos os trechos e tem prioridade sobre as vozes embutidas; a orientação de uso é uma referência de 6 a 30 segundos.
+`--locutor` define a voz embutida dos trechos sem personagem explícito. Para referências de áudio, a prioridade atual é: **referência do tom → referência do personagem → `--voz`**. Sem referência, o pipeline usa a voz embutida do personagem, `--locutor` ou o padrão do idioma. Assim, `--voz` é uma referência global de fallback; ela não substitui referências específicas de tom ou personagem. A orientação de uso é uma referência de 6 a 30 segundos.
+
+`Iapetus` é um alias local para `Xavier Hayasaka`; não baixa nem seleciona um modelo de voz diferente.
 
 ### Diálogos com múltiplos locutores
 
@@ -229,7 +233,7 @@ Os rótulos são removidos antes da síntese. Apelidos como `Narrador`, `Luis`, 
 - `[Alma|es]:` escolhe a personagem e força espanhol naquele parágrafo.
 - `[es]:` força espanhol e usa a voz selecionada pelas opções do comando ou pelo idioma.
 - `[Alma]:` escolhe a voz; o idioma continua sujeito à detecção ou à opção `--idioma`.
-- `[vozes/convidado.wav|pt]:` usa diretamente um arquivo de áudio de referência para aquele parágrafo. Também é possível mapear nomes de personagens na linha de comando com `--vozes-personagens "luis=vozes/luis.wav,alma=vozes/alma.wav"`. Cada personagem mantém seu próprio hash SHA-256 no cache.
+- `[vozes/convidado.wav|pt]:` usa diretamente um arquivo de áudio de referência para aquele parágrafo. Também é possível mapear nomes de personagens na linha de comando com `--vozes-personagens "luis=vozes/luis.wav,alma=vozes/alma.wav"`. Cada referência tem seu próprio hash SHA-256 no cache. Os exemplos em `vozes/` pressupõem arquivos fornecidos pelo usuário; para manter gravações fora do Git, prefira `referencias/`.
 
 <a id="normalizacao"></a>
 
@@ -386,6 +390,70 @@ Vírgulas dentro de um trecho não recebem necessariamente um silêncio inserido
 
 </details>
 
+<a id="pos-processamento"></a>
+
+## 🎬 Legendas e processamento final
+
+### SRT e VTT
+
+```bash
+python tts.py exemplos/narracao_pt.txt --saida saida/narracao_pt --formatos mp3,wav,srt,vtt
+```
+
+As legendas usam `inicio_s`, `fim_s` e `texto` de cada segmento do manifesto. São sincronizadas **por segmento**, sem alinhamento palavra por palavra, transcrição adicional ou regras automáticas de tamanho de linha. O texto é o preparado para síntese e pode conter grafias fonéticas do glossário.
+
+Também é possível pedir apenas `--formatos srt,vtt`. O pipeline ainda precisa sintetizar ou recuperar os segmentos para conhecer suas durações; isso não equivale a gerar legendas diretamente de um texto sem áudio. Nesse caso, não monta o WAV final.
+
+### LUFS, taxa de amostragem e trilha
+
+```bash
+python tts.py exemplos/narracao_pt.txt --saida saida/narracao_pt --wav --lufs -16 --taxa-amostragem 48000
+
+# Requer um arquivo de trilha fornecido pelo usuário
+python tts.py exemplos/narracao_pt.txt --saida saida/com_trilha --trilha referencias/trilha.wav --volume-trilha -24 --lufs -16
+```
+
+`--lufs` aplica o filtro `loudnorm` do FFmpeg em uma passagem, com alvo informado, pico verdadeiro configurado em −1,5 dBTP e LRA em 11. Não há medição independente posterior para certificar o alvo alcançado; isso não substitui uma revisão de masterização.
+
+O cache de fala permanece mono a 24 kHz. `--taxa-amostragem` faz conversão na exportação para 24, 44,1 ou 48 kHz; aumentar a taxa não recupera detalhes ausentes da síntese. WAV processado, LUFS e trilha também exigem FFmpeg.
+
+A trilha é repetida para acompanhar a duração da narração, convertida para mono e reduzida automaticamente durante a fala por `sidechaincompress`. É uma mixagem em beta, sem editor de trilhas ou ajuste individual por cena. A validação por manifesto examina os segmentos anteriores à mixagem e à masterização; ouça e confira o arquivo final separadamente.
+
+### Tentativas automáticas
+
+`--max-tentativas` controla o total de tentativas de síntese por segmento, com padrão de duas. A detecção usa heurísticas de silêncio e duração, sem transcrever o trecho a cada tentativa. **Se a anomalia persistir, o pipeline avisa e pode conservar um dos segmentos gerados**, inclusive para reutilização no cache. O mecanismo não garante correção de pronúncia, eliminações ou alucinações. Use validação e audição; para tentar novamente, selecione `--refazer-segmentos` ou `--refazer`.
+
+<a id="api"></a>
+
+## 🔌 API HTTP local · beta
+
+Inicie o servidor com o Python do ambiente de síntese:
+
+```bash
+python servidor_api.py --host 127.0.0.1 --porta 8000 --dispositivo auto
+```
+
+Em outro terminal, faça uma requisição (exemplo macOS/Linux):
+
+```bash
+curl --fail-with-body http://127.0.0.1:8000/v1/audio/speech \
+  -H "Content-Type: application/json" \
+  -d '{"model":"tts-1","input":"Olá, este é um teste local.","voice":"iapetus","language":"pt","response_format":"wav","speed":1.1}' \
+  --output saida/api_exemplo.wav
+```
+
+A pasta `saida/` é criada na inicialização padrão do servidor. Consulte `GET /health`, `GET /v1/models` e `GET /v1/voices` para verificar o serviço e seus mapeamentos. `--pasta-cache` permite escolher outra pasta de trabalho. Pare o servidor com `Ctrl+C`.
+
+A compatibilidade é **parcial**, para integração com clientes que aceitem outro endereço de servidor:
+
+- O campo `model` não troca o motor de síntese: as requisições usam XTTS v2, mesmo com IDs como `tts-1` e `tts-1-hd`.
+- As vozes são mapeamentos locais. Por exemplo, `iapetus` seleciona Xavier Hayasaka; não reproduz uma voz de outro serviço.
+- A resposta completa é preparada antes de ser enviada, sem streaming. São aceitos `mp3`, `wav`, `srt` e `vtt`, um formato por requisição.
+- As sínteses são serializadas por um bloqueio; não há inferência paralela nem modelo mantido carregado entre requisições. Segmentos compatíveis podem ser recuperados do cache.
+- Não há autenticação implementada. O padrão é escutar apenas em `127.0.0.1`; não exponha o serviço em interfaces externas como se fosse um servidor protegido.
+
+O serviço não chama a API da OpenAI nem exige uma chave dela. Consulte a [referência](docs/REFERENCIA.md) para campos e limites adicionais.
+
 <a id="conferencia"></a>
 
 ## 🎧 Conferir o resultado
@@ -441,7 +509,7 @@ Para esse modo, use `--manifesto` sem os argumentos posicionais e sem `--idioma`
 
 ### Avaliar a qualidade com amostras reais
 
-O [corpus bilíngue](avaliacao/corpus_pt_es.txt) exercita datas, horários, dinheiro, negativos, ênfase e pausas. O [guia de avaliação](avaliacao/GUIA.md) descreve a geração, as medições e uma ficha de audição para comparar versões. O [resultado inicial](avaliacao/resultado_inicial.json) registra a medição com XTTS e Whisper reais: oito segmentos, WER global de aproximadamente 1,2%, sem avisos acústicos. Esse resultado é específico da amostra e do ambiente registrados.
+O [corpus bilíngue](avaliacao/corpus_pt_es.txt) exercita datas, horários, dinheiro, negativos, ênfase e pausas. O [guia de avaliação](avaliacao/GUIA.md) descreve a geração, as medições e uma ficha de audição para comparar versões. O [resultado inicial](avaliacao/resultado_inicial.json) registra a medição com XTTS e Whisper reais: oito segmentos, WER global de aproximadamente 1,2%, sem avisos acústicos. Esse resultado é histórico e específico da amostra e do ambiente registrados, anteriores às mudanças recentes de normalização. Não é uma medição da revisão atual do código.
 
 ```bash
 python tts.py avaliacao/corpus_pt_es.txt --saida saida/avaliacao_pt_es --formatos wav --dispositivo cpu

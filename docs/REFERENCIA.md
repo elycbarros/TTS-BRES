@@ -32,7 +32,7 @@ A tabela completa de opções de síntese e pausas está no [README](../README.m
 - `--lufs` aplica normalização EBU R128 (`loudnorm`) no áudio final (`-70` a `-5`, ex.: `-16` para podcasts); `--taxa-amostragem` seleciona a frequência final (`24000`, `44100` ou `48000` Hz).
 - `--trilha` *(beta)* mistura uma trilha de fundo em loop com *auto-ducking* (`sidechaincompress`) e ganho base `--volume-trilha` (padrão `-18.0` dB).
 - `--limpar-referencia` *(beta)* filtra áudios de referência com `highpass`, `lowpass`, `afftdn` e `loudnorm` antes da clonagem.
-- `--max-tentativas` (padrão `2`) repete a síntese do segmento quando detecta silêncio total ou alucinação de duração excessiva.
+- `--max-tentativas` (padrão `2`) limita o total de tentativas diante de anomalias heurísticas de silêncio ou duração. Se persistirem, o pipeline pode salvar um segmento ainda anômalo e emite aviso; não há garantia de correção.
 - `--sem-normalizar` desativa a normalização fonética. As tags, personagens, divisão de trechos e pausas continuam ativos.
 - A ordem de prioridade de voz por trecho é: referência de tom (`[tom:...]` / `--vozes-tons`), referência de personagem (`--vozes-personagens` / `[arquivo.wav]:`), gravação global em `--voz`, personagem embutido explícito, `--locutor`, voz padrão do idioma.
 - Duração recomendada da referência: 6 a 30 segundos. A CLI verifica a existência do arquivo; não valida previamente sua duração nem a qualidade da gravação.
@@ -118,3 +118,35 @@ python servidor_api.py --porta 8000
 ```
 
 `medir_audio.py` apresenta a linha do tempo de fala/silêncio no terminal. `comparar_vozes.py` gera uma seleção de amostras em CPU; `--listar` imprime os nomes disponíveis e continua gerando amostras. `servidor_api.py` *(beta)* expõe a rota `POST /v1/audio/speech` compatível com clientes OpenAI TTS, além de `GET /v1/models`, `GET /v1/voices` e `GET /health`.
+
+## API HTTP: campos e limites
+
+O servidor usa a biblioteca padrão do Python e não necessita de um pacote web adicional. Para iniciá-lo:
+
+```bash
+python servidor_api.py --host 127.0.0.1 --porta 8000 --pasta-cache saida/api_cache --dispositivo cpu
+```
+
+| Campo JSON | Padrão | Comportamento |
+|---|---|---|
+| `input` | Obrigatório | Texto a sintetizar; não pode estar vazio. |
+| `voice` | Automático | Alias local, nome de locutor ou caminho de referência acessível ao servidor. `iapetus` é Xavier Hayasaka. |
+| `language` / `idioma` | `auto` | `auto`, `pt` ou `es`; `language` prevalece se informado. |
+| `response_format` | `mp3` | Um de `mp3`, `wav`, `srt` ou `vtt`. |
+| `speed` | `1.1` | Número finito de 0,25 a 4. A faixa da API é validada antes da CLI. |
+| `lufs` | Desativado | Encaminhado para `--lufs`, com a mesma validação da CLI. |
+| `limpar_referencia` | Desativado | Valor booleano para ativar o tratamento da referência. |
+| `model` | Não seleciona o motor | Aceito no corpo, mas não interpretado para escolher outro modelo. |
+
+Exemplo no PowerShell, após iniciar o servidor na configuração padrão:
+
+```powershell
+$corpo = @{ model = 'tts-1'; input = 'Teste local de voz.'; voice = 'iapetus'; language = 'pt'; response_format = 'wav' } | ConvertTo-Json
+Invoke-WebRequest -Uri 'http://127.0.0.1:8000/v1/audio/speech' -Method Post -ContentType 'application/json; charset=utf-8' -Body ([System.Text.Encoding]::UTF8.GetBytes($corpo)) -OutFile 'saida/api_exemplo.wav'
+```
+
+O servidor limita o corpo da requisição a 2.000.000 bytes. Respostas de sucesso retornam o arquivo completo com código HTTP 200; erros de entrada tratados retornam 400, e erros internos tratados retornam 500. Isso não é streaming, mesmo quando o cliente envia parâmetros que peçam esse comportamento.
+
+`GET /v1/models` lista identificadores de compatibilidade; `tts-1`, `tts-1-hd` e `xtts_v2` não representam três modelos instalados. `GET /v1/voices` mostra nomes e aliases locais, sem prometer equivalência com vozes de outros serviços.
+
+A síntese é protegida por um bloqueio e ocorre uma requisição por vez. O cache é compartilhado, mas o modelo não é mantido em memória entre chamadas. O arquivo de resposta é lido integralmente para memória. Não há autenticação, fila persistente nem mecanismo de isolamento para usuários distintos; mantenha o uso no endereço local padrão. O servidor é uma integração experimental, não uma reprodução completa da API de outro fornecedor.

@@ -1,5 +1,12 @@
 # Histórico de alterações
 
+## Revisão da documentação — 30/10/2026
+
+- Prioridade de referências de tom, personagem e voz global alinhada ao código.
+- README ampliado com uso da API local e seus limites de compatibilidade, concorrência e autenticação.
+- Legendas por segmento, processamento LUFS, trilha e falhas persistentes após tentativas automáticas explicados.
+- Avaliação inicial identificada como resultado histórico, sem atribuí-la à revisão atual.
+
 ## Não versionado — 29/10/2026
 
 As entradas abaixo consolidam as entregas locais. Não representam uma versão publicada nem garantem que todas as alterações já tenham sido incluídas em um commit.

@@ -2,7 +2,7 @@
 
 [README](../README.md) · [Referência da CLI](REFERENCIA.md) · [Arquitetura](ARQUITETURA.md)
 
-A primeira versão da GUI oferece editor de roteiro, configuração de voz, análise antes da síntese, geração de amostra, progresso por segmento, retomada, interrupção entre trechos e revisão com ferramentas do sistema. O pipeline de síntese é o mesmo usado pela CLI.
+A GUI local oferece editor de roteiro, configuração de voz, análise antes da síntese, geração de amostra, progresso por segmento, retomada, interrupção entre trechos e revisão com ferramentas do sistema. O pipeline de síntese é o mesmo usado pela CLI.
 
 Esta é uma versão inicial para uso pessoal, preparada para macOS e Windows. Não é um instalador independente. Os testes automatizados verificam a integração e os processos de trabalho; a janela e o player precisam de verificação no desktop de cada sistema.
 
@@ -73,6 +73,10 @@ O glossário automático associado ao arquivo aberto é preservado na preparaç�
 
 A entrada de voz aceita outros nomes embutidos além das sugestões da lista. A validação das opções é feita pelo pipeline existente; erros e mensagens das bibliotecas aparecem na aba Registro.
 
+## Regenerar um trecho
+
+Na aba de revisão, selecione um segmento e use **Regerar trecho selecionado**. A GUI encaminha seu ID para `--refazer-segmentos`, executando o roteiro atual do editor e remontando a saída. Mantenha o roteiro e as configurações correspondentes ao resultado revisado: alterar o texto pode mudar a numeração, e abrir um manifesto não restaura o roteiro no editor. O botão não edita diretamente o WAV nem recupera o texto original do manifesto.
+
 ## Interrupção e retomada
 
 **Interromper após o trecho** solicita uma parada cooperativa. O trecho em andamento, incluindo eventual carregamento do modelo, precisa terminar antes de a solicitação ser atendida. Segmentos concluídos permanecem no cache. O manifesto passa a `interrompido` e não há exportação final daquela tentativa.
@@ -131,3 +135,5 @@ As saídas finais e o cache de fala usam a pasta escolhida. Prefira `saida/` ou 
 Cada tarefa abre um novo worker; o modelo não permanece carregado entre tarefas. Uma amostra e uma geração completa podem carregar o modelo separadamente, a menos que o cache já resolva a geração.
 
 A janela não importa Torch nem XTTS. A comunicação usa eventos JSON identificados no stdout do worker, acompanhados dos logs. O worker chama as mesmas funções da CLI, e os widgets são atualizados somente pelo event loop da janela.
+
+Para detalhes sobre legendas por segmento, LUFS em uma passagem e limitações de tentativas automáticas, consulte o [processamento final no README](../README.md#pos-processamento).
