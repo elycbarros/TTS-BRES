@@ -30,6 +30,7 @@ OPENAI_VOICE_MAP = {
     "fable": "Marcos Rudaski",
     "nova": "Alma María",
     "shimmer": "Ana Florence",
+    "iapetus": "Xavier Hayasaka",
 }
 
 CONTENT_TYPES = {

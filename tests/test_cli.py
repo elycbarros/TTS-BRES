@@ -176,6 +176,23 @@ class TestCLI(unittest.TestCase):
             self.assertTrue(vtt.startswith('WEBVTT\n\n'))
             self.assertIn('00:00:00.200 --> 00:00:00.300\nPrimeira frase', vtt)
 
+    def test_alias_locutor_iapetus_em_espanhol(self):
+        for locutor_arg in ('Iapetus', 'Iapetus (Xavier Hayasaka)'):
+            with self.subTest(locutor_arg=locutor_arg), tempfile.TemporaryDirectory() as tmp:
+                pasta = Path(tmp)
+                entrada = pasta / 'texto_es.txt'
+                entrada.write_text('[Iapetus|es]: Hola mundo.\n\nSegunda frase en español.', encoding='utf-8')
+                eventos = []
+                with contextlib.redirect_stdout(io.StringIO()):
+                    tts.main([str(entrada), '--idioma', 'es', '--locutor', locutor_arg,
+                              '--saida', str(pasta / 'audio'), '--analisar'], on_event=eventos.append)
+                segs = eventos[0]['segmentos']
+                self.assertEqual(len(segs), 2)
+                self.assertEqual(segs[0]['locutor'], 'Xavier Hayasaka')
+                self.assertEqual(segs[0]['idioma'], 'es')
+                self.assertEqual(segs[1]['locutor'], 'Xavier Hayasaka')
+                self.assertEqual(segs[1]['idioma'], 'es')
+
 
 if __name__ == '__main__':
     unittest.main()

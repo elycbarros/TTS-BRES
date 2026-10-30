@@ -184,6 +184,20 @@ class TestEventosPipeline(unittest.TestCase):
                 self.assertEqual(modelo.tts.call_count, 0)
                 self.assertEqual(wav_bytes, wav_bytes_2)
 
+                # Alias 'iapetus' na API resolve para 'Xavier Hayasaka'
+                modelo.tts.reset_mock()
+                motor.sintetizar({
+                    'model': 'tts-1',
+                    'input': 'Hola mundo.',
+                    'voice': 'iapetus',
+                    'language': 'es',
+                    'response_format': 'wav',
+                    'speed': 1.0,
+                })
+                self.assertEqual(modelo.tts.call_count, 1)
+                self.assertEqual(modelo.tts.call_args.kwargs['speaker'], 'Xavier Hayasaka')
+                self.assertEqual(modelo.tts.call_args.kwargs['language'], 'es')
+
                 with self.assertRaises(ValueError):
                     motor.sintetizar({'input': ''})
 

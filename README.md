@@ -140,8 +140,8 @@ python tts.py exemplos/narracao_pt.txt --saida saida/narracao_pt --lufs -16 --ta
 # Apenas WAV
 python tts.py exemplos/narracao_pt.txt --saida saida/narracao_pt --formatos wav
 
-# Espanhol com voz específica
-python tts.py exemplos/narracao_es.txt --idioma es --locutor "Xavier Hayasaka" --saida saida/narracao_es
+# Espanhol com voz masculina clara (estilo Iapetus / Xavier Hayasaka)
+python tts.py exemplos/narracao_es.txt --idioma es --locutor Iapetus --saida saida/narracao_es
 
 # Voz de referência para clonagem (com higienização opcional em beta)
 python tts.py exemplos/narracao_pt.txt --voz referencia.wav --limpar-referencia --saida saida/voz_referencia
@@ -224,7 +224,7 @@ Coloque o personagem no início de cada parágrafo:
 [Alma|es]: Excelente noticia. Ahora podemos iniciar las pruebas.
 ```
 
-Os rótulos são removidos antes da síntese. Apelidos como `Narrador`, `Luis`, `Alma`, `Marcos`, `Gilberto`, `Ana`, `Sofia`, `Tammie` e `Xavier` são convertidos para nomes de vozes embutidas. Também é possível informar o nome completo de um locutor.
+Os rótulos são removidos antes da síntese. Apelidos como `Narrador`, `Luis`, `Alma`, `Iapetus` (`Xavier Hayasaka`), `Ferran`, `Marcos`, `Gilberto`, `Ana`, `Sofia`, `Tammie` e `Xavier` são convertidos para nomes de vozes embutidas (tanto nas tags de diálogo quanto em `--locutor`). Também é possível informar o nome completo de um locutor.
 
 - `[Alma|es]:` escolhe a personagem e força espanhol naquele parágrafo.
 - `[es]:` força espanhol e usa a voz selecionada pelas opções do comando ou pelo idioma.

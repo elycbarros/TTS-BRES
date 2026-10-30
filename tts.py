@@ -95,6 +95,8 @@ PERSONAGENS_MAP = {
     "hellen": "Sofia Hellen",
     "xavier": "Xavier Hayasaka",
     "hayasaka": "Xavier Hayasaka",
+    "iapetus": "Xavier Hayasaka",
+    "iapetus (xavier hayasaka)": "Xavier Hayasaka",
     "claribel": "Claribel Dervla",
     "daisy": "Daisy Studious",
     "gracie": "Gracie Wise",
@@ -687,6 +689,7 @@ def main(argv=None, on_event=None, should_stop=None, modelo_precarregado=None):
         args.locutor = args.locutor.strip()
         if not args.locutor:
             ap.error("--locutor não pode ser vazio.")
+        args.locutor = resolver_locutor(args.locutor, "pt", args.locutor)
     if args.voz and not Path(args.voz).is_file():
         ap.error(f"Áudio de referência não encontrado: {args.voz}")
     if args.trilha and not Path(args.trilha).is_file():

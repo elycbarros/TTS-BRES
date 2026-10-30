@@ -154,7 +154,8 @@ def iniciar_janela():
             ttk.Label(lateral, text='Configurar a narração', style='Section.TLabel').pack(anchor='w', pady=(0, 12))
             self._campo(lateral, 'Idioma', 'idioma', ('auto', 'pt', 'es'))
             self._campo(lateral, 'Voz embutida', 'locutor', ('Automática', 'Luis Moray', 'Alma María',
-                        'Ana Florence', 'Sofia Hellen', 'Xavier Hayasaka', 'Marcos Rudaski'), livre=True)
+                        'Iapetus (Xavier Hayasaka)', 'Xavier Hayasaka', 'Ferran Simen',
+                        'Ana Florence', 'Sofia Hellen', 'Marcos Rudaski'), livre=True)
             self._campo(lateral, 'Velocidade · 1.0 é a original', 'velocidade')
             self._campo(lateral, 'Formatos', 'formatos', ('mp3,wav', 'mp3,wav,srt', 'mp3,srt', 'wav', 'mp3', 'srt', 'vtt'), livre=True)
             self._campo(lateral, 'Nome base da saída', 'saida')
