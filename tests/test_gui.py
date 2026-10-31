@@ -56,6 +56,20 @@ class TestProtocolo(unittest.TestCase):
             self.assertEqual(plano['total'], 2)
             self.assertFalse((p / 'saidas').exists())
 
+    def test_worker_referencia_relativa_ao_roteiro_original(self):
+        from pydub import AudioSegment
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp)
+            origem = p / 'pasta do roteiro' / 'roteiro.txt'
+            origem.parent.mkdir()
+            origem.write_text('[voz.wav|pt]: Olá mundo.', encoding='utf-8')
+            with AudioSegment.silent(100, frame_rate=24000).export(str(origem.parent / 'voz.wav'), format='wav'):
+                pass
+            pedido = salvar_pedido('analisar', origem.read_text(), {'saida': str(p / 'audio')}, origem=origem, pasta=p)
+            r = subprocess.run([sys.executable, '-B', str(ROOT / 'gui_worker.py'), str(pedido)],
+                               capture_output=True, text=True, timeout=30)
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
     def test_worker_real_erro_reportado(self):
         with tempfile.TemporaryDirectory() as tmp:
             pedido = salvar_pedido('analisar', 'Olá [enfaze].', {'saida': str(Path(tmp) / 'audio')}, pasta=tmp)

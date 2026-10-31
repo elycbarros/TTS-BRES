@@ -29,7 +29,7 @@ py -3 -m tkinter
 py -3 gui.py
 ```
 
-Se o comando Python não existir, use o caminho completo do executável instalado. A GUI deve ser iniciada em uma sessão gráfica do usuário; uma sessão remota ou restrita pode não permitir abrir janelas.
+Se o comando Python não existir, use o caminho completo do executável instalado. Os ajustes avançados têm uma área rolável para acomodar os campos em telas menores. A GUI deve ser iniciada em uma sessão gráfica do usuário; uma sessão remota ou restrita pode não permitir abrir janelas.
 
 ### Quando o ambiente do TTS não tem Tkinter
 
@@ -42,7 +42,7 @@ Use uma instalação de Python com Tkinter para abrir `gui.py`. Depois, em **Aju
 | macOS | `.venv/bin/python` |
 | Windows | `.venv\Scripts\python.exe` |
 
-O aplicativo procura automaticamente um ambiente `.venv` na pasta do projeto e, depois, um ambiente `ttsbr` em `~/.venvs/`. Se não encontrar, usa o próprio Python da janela. A preferência salva prevalece; ajuste-a quando mover ou recriar o ambiente. O Python da janela precisa apenas da biblioteca padrão; não precisa carregar Torch ou XTTS.
+No checkout, o aplicativo procura automaticamente um ambiente `.venv` na pasta do projeto e, depois, um ambiente `ttsbr` em `~/.venvs/`. Se não encontrar, usa o próprio Python da janela. Instalado por wheel, o padrão é o próprio Python usado para abrir a GUI, sem selecionar outro ambiente pessoal. A preferência salva prevalece; ajuste-a quando mover ou recriar o ambiente. O Python da janela precisa apenas da biblioteca padrão; não precisa carregar Torch ou XTTS.
 
 Veja a [documentação oficial do Tkinter](https://docs.python.org/3/library/tkinter.html) e as orientações do distribuidor do seu Python para instalar o componente gráfico. Não é necessário reinstalar o ambiente do modelo para escolher um Python diferente para a janela.
 
@@ -102,7 +102,9 @@ No modo de métricas, não há aprovação automática. O manifesto validado é 
 
 ## Arquivos locais e privacidade
 
-A GUI salva em `local/gui/`, que é ignorado pelo Git:
+No checkout, a GUI salva em `local/gui/`, que é ignorado pelo Git. Instalada por wheel, usa `~/Library/Application Support/TTSBR` no macOS e `%LOCALAPPDATA%\TTSBR` no Windows como raiz, mantendo a subpasta `local/gui/`. A variável `TTSBR_HOME` pode definir outra raiz antes da inicialização. A documentação da GUI é incluída no pacote; dados pessoais não são gravados junto aos módulos instalados.
+
+Dentro dessa raiz:
 
 | Local | Conteúdo |
 |---|---|

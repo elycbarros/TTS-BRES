@@ -79,3 +79,6 @@ dist/
 *.swp
 *.swo
 *~
+
+# Instruções locais do assistente
+/[Gg][Ee][Mm][Ii][Nn][Ii].[Mm][Dd]

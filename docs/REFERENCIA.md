@@ -85,7 +85,7 @@ Variações ortográficas e erros do Whisper afetam a medida. Na amostra inicial
 | `analise_previa` | Quantidade estimada de palavras, duração, necessidade de divisão, idioma dominante e voz global. |
 | `blocos` | Identificador, palavras, texto e `texto_falado` de cada bloco. |
 | `estado` | `sintetizando`, `montando`, `interrompido` ou `concluido`. Pode permanecer na etapa interrompida. |
-| `configuracao` | Python, versões de bibliotecas, dispositivo solicitado, velocidade, volume, corte, hash da referência e hashes de três arquivos do pipeline. |
+| `configuracao` | Python, versões de bibliotecas, dispositivo solicitado, velocidade, volume, corte, hash da referência e hashes dos módulos principais do pipeline, incluindo os módulos extraídos. |
 | `segmentos` | Falas concluídas na execução, incluindo trechos recuperados do cache. |
 
 Cada entrada em `segmentos` contém `id`, `bloco`, `texto`, `idioma`, `locutor`, `arquivo`, `chave`, `inicio_s`, `fim_s`, `duracao_s` e `reutilizado`. `locutor` é `null` quando há referência de voz. As posições usam a linha do tempo do WAV, incluindo 200 ms de silêncio inicial e as pausas anteriores.
@@ -150,3 +150,5 @@ O servidor limita o corpo da requisição a 2.000.000 bytes. Respostas de sucess
 `GET /v1/models` lista identificadores de compatibilidade; `tts-1`, `tts-1-hd` e `xtts_v2` não representam três modelos instalados. `GET /v1/voices` mostra nomes e aliases locais, sem prometer equivalência com vozes de outros serviços.
 
 A síntese é protegida por um bloqueio e ocorre uma requisição por vez. O cache é compartilhado, mas o modelo não é mantido em memória entre chamadas. O arquivo de resposta é lido integralmente para memória. Não há autenticação, fila persistente nem mecanismo de isolamento para usuários distintos; mantenha o uso no endereço local padrão. O servidor é uma integração experimental, não uma reprodução completa da API de outro fornecedor.
+
+Na instalação por wheel, o cache padrão da API usa a pasta de dados do usuário, sem escrever junto aos módulos. No checkout permanece em `saida/api_cache`. `TTSBR_HOME` altera a raiz; `--pasta-cache` escolhe diretamente o diretório da API. Entradas `input` não textuais, `speed` nulo/inválido e `limpar_referencia` não booleano são rejeitadas com erro de entrada.

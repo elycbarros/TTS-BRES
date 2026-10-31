@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=77.0.3"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,7 +7,8 @@ name = "ttsbr"
 version = "1.0.0"
 description = "Pipeline local de conversão de texto para voz (TTS) em Português Brasileiro e Espanhol usando XTTS v2"
 readme = "README.md"
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
 authors = [
     { name = "Ely do Carmo Barros" }
 ]
@@ -22,8 +23,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+validacao = ["transformers", "librosa", "soundfile"]
 dev = [
     "pytest>=7.0",
+    "build>=1.2",
+    "tomli>=2; python_version < '3.11'",
     "ruff>=0.1.0",
 ]
 
@@ -39,3 +43,20 @@ python_files = ["test_*.py"]
 [tool.ruff]
 line-length = 120
 target-version = "py310"
+
+[tool.setuptools]
+packages = []
+py-modules = [
+    "tts", "normalizador", "lexico", "segmentador", "vozes", "processamento_audio",
+    "audio_persistente", "qualidade_audio", "validar_audio", "medir_audio",
+    "comparar_vozes", "servidor_api", "gui", "gui_core", "gui_worker", "caminhos",
+]
+
+[tool.setuptools.data-files]
+"share/ttsbr" = ["README.md", "LICENSE", "THIRD_PARTY_NOTICES.md", "CHANGELOG.md", "glossario.txt.exemplo"]
+"share/ttsbr/docs" = ["docs/GUI.md", "docs/REFERENCIA.md", "docs/ARQUITETURA.md", "docs/SOBRE.md", "docs/ROADMAP.md", "docs/ESTABILIZACAO.md"]
+"share/ttsbr/docs/assets" = ["docs/assets/ttsbr-banner.svg"]
+"share/ttsbr/exemplos" = ["exemplos/narracao_pt.txt", "exemplos/narracao_es.txt", "exemplos/dialogo.txt", "exemplos/expressividade.txt"]
+"share/ttsbr/avaliacao" = ["avaliacao/GUIA.md", "avaliacao/corpus_pt_es.txt", "avaliacao/resultado_inicial.json", "avaliacao/resultado_estabilizacao.json"]
+
+"share/ttsbr/constraints" = ["constraints/macos-py312.txt", "constraints/macos-py312-recente.txt"]

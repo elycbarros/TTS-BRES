@@ -7,7 +7,8 @@ import queue
 import subprocess
 import sys
 
-from gui_core import ROOT, ProcessoTrabalho, python_padrao, salvar_pedido
+from caminhos import recurso
+from gui_core import DATA_ROOT, ROOT, ProcessoTrabalho, python_padrao, salvar_pedido
 
 try:
     import tkinter as tk
@@ -50,12 +51,12 @@ if TKINTER_DISPONIVEL:
             self.segmentos = {}
             self.fechar_depois = False
             self.dirty = False
-            self.preferencias = ROOT / "local" / "gui" / "preferencias.json"
+            self.preferencias = DATA_ROOT / "local" / "gui" / "preferencias.json"
             self.vars = {}
 
             defaults = {
                 "python": python_padrao(),
-                "saida": str(ROOT / "saida" / "narracao"),
+                "saida": str(DATA_ROOT / "saida" / "narracao"),
                 "idioma": "auto",
                 "locutor": "Automática",
                 "voz": "",
@@ -129,7 +130,7 @@ if TKINTER_DISPONIVEL:
             head.pack(fill="x", pady=(0, 18))
             ttk.Label(head, text="TTSBR", style="Title.TLabel").pack(side="left")
             ttk.Label(head, text="  Roteiro → voz → revisão", style="Sub.TLabel").pack(side="left", padx=16)
-            ttk.Button(head, text="Guia", command=lambda: self._abrir_caminho(ROOT / "docs" / "GUI.md")).pack(side="right")
+            ttk.Button(head, text="Guia", command=lambda: self._abrir_caminho(recurso("docs/GUI.md"))).pack(side="right")
 
             body = ttk.Frame(shell)
             body.pack(fill="both", expand=True)
@@ -291,7 +292,8 @@ if TKINTER_DISPONIVEL:
             ttk.Label(foot, textvariable=self.status, wraplength=1060).pack(anchor="w")
             ttk.Label(
                 foot,
-                text="XTTS v2 e seus áudios: uso sujeito à CPML, com restrição comercial. Arquivos da GUI ficam em local/gui/.",
+                text=f"XTTS v2 e seus áudios: sujeitos à CPML. Dados locais: {self.preferencias.parent}",
+                wraplength=1000,
                 style="Sub.TLabel",
             ).pack(anchor="w", pady=(7, 0))
 
@@ -315,8 +317,24 @@ if TKINTER_DISPONIVEL:
             top.transient(self.root)
             top.grab_set()
 
-            frame = ttk.Frame(top, padding=20)
-            frame.pack(fill="both", expand=True)
+            top.geometry("680x700")
+            top.minsize(520, 400)
+            area = ttk.Frame(top)
+            area.pack(fill="both", expand=True)
+            canvas = tk.Canvas(area, highlightthickness=0, background="#f3f6fa")
+            rolagem = ttk.Scrollbar(area, orient="vertical", command=canvas.yview)
+            canvas.configure(yscrollcommand=rolagem.set)
+            rolagem.pack(side="right", fill="y")
+            canvas.pack(side="left", fill="both", expand=True)
+            frame = ttk.Frame(canvas, padding=20)
+            janela_interna = canvas.create_window((0, 0), window=frame, anchor="nw")
+            frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+            canvas.bind("<Configure>", lambda e: canvas.itemconfigure(janela_interna, width=e.width))
+
+            def rolar(evento):
+                passo = -int(evento.delta / 120) if abs(evento.delta) >= 120 else -int(evento.delta)
+                canvas.yview_scroll(passo, "units")
+            top.bind("<MouseWheel>", rolar)
 
             self._campo(frame, "Python do ambiente TTSBR", "python")
             ttk.Button(frame, text="Selecionar Python…", command=lambda: self._arquivo("python", [("Executável Python", "*")])).pack(fill="x", pady=(0, 12))

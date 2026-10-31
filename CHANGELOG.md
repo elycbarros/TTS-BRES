@@ -1,5 +1,14 @@
 # Histórico de alterações
 
+## Candidato local de estabilização — 31/10/2026
+
+- Corrigida a construção wheel/sdist com módulos e recursos explícitos e cópia temporária sem metadados AppleDouble.
+- Adicionados extra de validação, constraints do ambiente macOS/Python 3.12 e separação de dados da aplicação instalada.
+- API rejeita tipos inválidos como erros de entrada, com testes HTTP reais.
+- GUI com rolagem nos ajustes avançados e resolução de referências relativa ao roteiro original.
+- Manifesto registra hashes dos novos módulos do pipeline.
+- Evidências e checklist em `docs/ESTABILIZACAO.md`; GUI visual, Windows e avaliação subjetiva continuam pendentes.
+
 ## Refatoração arquitetural, modularização e correções — 31/10/2026
 
 - **Modularização do pipeline (`tts.py`)**: extração de módulos especializados com responsabilidade única:

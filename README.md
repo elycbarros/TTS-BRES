@@ -28,6 +28,7 @@ Converta arquivos `.txt` em MP3 ou WAV com normalização de números, siglas e 
 | Entender persistência, montagem e recuperação | [Arquitetura do pipeline](docs/ARQUITETURA.md) |
 | Comparar versões e avaliar amostras PT/ES | [Guia de avaliação](avaliacao/GUIA.md) |
 | Entender as licenças do código e do modelo | [Licença](#licenca) e [componentes de terceiros](THIRD_PARTY_NOTICES.md) |
+| Conferir a rodada de estabilização e pendências | [Estabilização](docs/ESTABILIZACAO.md) |
 | Consultar as alterações do projeto | [Histórico de alterações](CHANGELOG.md) |
 | Ver sugestões e próximas melhorias planejadas | [Roadmap do projeto](docs/ROADMAP.md) |
 
@@ -85,6 +86,18 @@ python -m pip install -r requirements.txt
 
 No Windows, ative o ambiente com `.venv\Scripts\activate`.
 
+Para este Mac, a referência de estabilização usa Python 3.12 e versões em `constraints/macos-py312.txt`. A instalação mais recente foi suficiente para vozes embutidas, mas falhou na leitura TorchCodec de referências sem bibliotecas compartilhadas do FFmpeg. Para reproduzir o ambiente de referência no checkout:
+
+```bash
+cd /CAMINHO/DO/TTSBR && .venv/bin/python -m pip install -r requirements.txt -c constraints/macos-py312.txt
+```
+
+Essa lista é específica do ambiente macOS/Python 3.12 e não comprova compatibilidade Windows. O diagnóstico completo está em [Estabilização](docs/ESTABILIZACAO.md).
+
+A rodada de estabilização também verificou instalação isolada em macOS com Python 3.12. Os [resultados e limites](docs/ESTABILIZACAO.md) incluem o ambiente de referência e a lista do que falta testar no desktop e no Windows.
+
+Para construir e instalar o pacote, prefira o [procedimento de construção limpa](docs/ESTABILIZACAO.md), especialmente em volumes externos. O extra `validacao` instala as ferramentas opcionais.
+
 A avaliação inicial foi executada com Python 3.12; as dependências atuais não estão fixadas por versão. Essa medição não garante compatibilidade com todas as versões de Python. O ambiente registrado pode ser consultado em [resultado_inicial.json](avaliacao/resultado_inicial.json).
 
 A exportação MP3 usa o `ffmpeg` do sistema. Quando ele não está disponível, o pipeline tenta usar o executável fornecido por `imageio-ffmpeg`, incluído nas dependências.
@@ -108,7 +121,7 @@ A GUI oferece editor, configurações, conferência do texto normalizado, amostr
 python3 gui.py
 ```
 
-No Windows, use `py -3 gui.py`. Há também os iniciadores `abrir_gui.command` e `abrir_gui.bat`. A janela precisa de Python com Tkinter; o Python do ambiente de síntese pode ser selecionado em **Ajustes avançados**. Preferências e snapshots ficam em `local/gui/`, fora do Git.
+No Windows, use `py -3 gui.py`. Há também os iniciadores `abrir_gui.command` e `abrir_gui.bat`. A janela precisa de Python com Tkinter; o Python do ambiente de síntese pode ser selecionado em **Ajustes avançados**. No checkout, preferências e snapshots ficam em `local/gui/`, fora do Git. Na instalação por wheel, ficam na pasta de dados do usuário; `TTSBR_HOME` pode definir outra raiz.
 
 Esta é uma versão inicial para uso pessoal, sem instalador. A integração com o pipeline é testada automaticamente; a janela precisa de validação no desktop do usuário, incluindo Windows. Consulte [requisitos, uso e limitações da GUI](docs/GUI.md).
 
@@ -509,7 +522,7 @@ Para esse modo, use `--manifesto` sem os argumentos posicionais e sem `--idioma`
 
 ### Avaliar a qualidade com amostras reais
 
-O [corpus bilíngue](avaliacao/corpus_pt_es.txt) exercita datas, horários, dinheiro, negativos, ênfase e pausas. O [guia de avaliação](avaliacao/GUIA.md) descreve a geração, as medições e uma ficha de audição para comparar versões. O [resultado inicial](avaliacao/resultado_inicial.json) registra a medição com XTTS e Whisper reais: oito segmentos, WER global de aproximadamente 1,2%, sem avisos acústicos. Esse resultado é histórico e específico da amostra e do ambiente registrados, anteriores às mudanças recentes de normalização. Não é uma medição da revisão atual do código.
+O [corpus bilíngue](avaliacao/corpus_pt_es.txt) exercita datas, horários, dinheiro, negativos, ênfase e pausas. O [guia de avaliação](avaliacao/GUIA.md) descreve a geração, as medições e uma ficha de audição para comparar versões. O [resultado inicial](avaliacao/resultado_inicial.json) registra a medição com XTTS e Whisper reais: oito segmentos, WER global de aproximadamente 1,2%, sem avisos acústicos. Esse resultado é histórico e específico da amostra e do ambiente registrados, anteriores às mudanças recentes de normalização. Não é uma medição da revisão atual do código. A rodada de [estabilização de 31/10/2026](docs/ESTABILIZACAO.md) tem uma medição separada, de aproximadamente 1,19% de WER global na nova amostra.
 
 ```bash
 python tts.py avaliacao/corpus_pt_es.txt --saida saida/avaliacao_pt_es --formatos wav --dispositivo cpu
@@ -624,6 +637,9 @@ TTSBR/
 ├── processamento_audio.py   # corte de silêncio residual, pausas internas e anti-alucinação
 ├── servidor_api.py          # servidor HTTP local compatível com OpenAI TTS (beta)
 ├── audio_persistente.py     # cache verificável, legendas e montagem em disco
+├── caminhos.py              # recursos distribuídos e diretórios graváveis
+├── scripts/construir.py      # wheel/sdist a partir de cópia pública limpa
+├── constraints/             # versões de referência por ambiente
 ├── normalizador.py          # pipeline fonético e números por extenso PT/ES
 ├── lexico.py                # tabelas léxicas, termos técnicos de IA e siglas PT/ES
 ├── validar_audio.py         # transcrição Whisper e WER por idioma/trecho

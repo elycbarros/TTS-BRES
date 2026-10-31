@@ -38,7 +38,7 @@ def executar(caminho):
     g_path.write_text(json.dumps(glossario, ensure_ascii=False), encoding='utf-8')
     cfg['glossario'] = str(g_path)
     try:
-        main(argumentos_sintese(pedido), on_event=emitir,
+        main(argumentos_sintese(pedido), on_event=emitir, origem_referencias=pedido.get('origem'),
              should_stop=lambda: (caminho.parent / 'interromper.flag').exists())
     except SinteseInterrompida:
         return

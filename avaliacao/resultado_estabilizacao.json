@@ -1,0 +1,82 @@
+{
+  "data": "2026-10-31",
+  "codigo_base": "030468e",
+  "correcoes_locais_sem_commit": true,
+  "dispositivo_real": "cpu",
+  "testes": {
+    "baseline": 78,
+    "fonte": 86,
+    "wheel_instalado": 86
+  },
+  "aceitacao": {
+    "retomada_cache_completo": true,
+    "interrupcao_e_retomada": true,
+    "trilha_preserva_duracao": true,
+    "audio": {
+      "taxa_hz": 48000,
+      "canais": 1,
+      "bits": 16,
+      "duracao_s": 33.23
+    },
+    "lufs_sem_trilha": -16.55,
+    "lufs_com_trilha": -16.66,
+    "legendas_por_segmento": 8,
+    "formatos_exportados": [
+      "mp3",
+      "wav",
+      "srt",
+      "vtt"
+    ],
+    "api_real": {
+      "primeira_requisicao": 200,
+      "segunda_requisicao": 200,
+      "cache_reutilizado": true,
+      "speed_nulo": 400
+    }
+  },
+  "validacao": {
+    "segmentos": 8,
+    "palavras_referencia": 84,
+    "wer_global": 0.011904761904761904,
+    "por_idioma": {
+      "pt": {
+        "palavras": 44,
+        "erros": 0,
+        "wer": 0.0
+      },
+      "es": {
+        "palavras": 40,
+        "erros": 1,
+        "wer": 0.025
+      }
+    },
+    "aprovado": true,
+    "limite_por_segmento": 0.1,
+    "avisos_acusticos": 0
+  },
+  "pendencias": [
+    "GUI em sessão gráfica macOS",
+    "audição e avaliação subjetiva",
+    "Windows real",
+    "CUDA e MPS"
+  ],
+  "observacao": "As medições principais e a clonagem usam configurações distintas, registradas separadamente. Aprovação funcional não equivale a avaliação subjetiva.",
+  "clonagem": {
+    "clonagem_por_personagem": true,
+    "referencia_por_tom": true,
+    "higienizacao_ffmpeg": true,
+    "referencias": "geradas sinteticamente a partir da amostra do projeto",
+    "avaliacao_subjetiva": false
+  },
+  "diagnostico_leitura": {
+    "linha_recente": "TorchCodec não carregou bibliotecas compartilhadas FFmpeg; vozes embutidas e exportação aprovadas",
+    "referencia_2_8": "Torchaudio leu referências; clonagem sintética, tons e limpeza concluídos"
+  },
+  "construcao": {
+    "wheel": true,
+    "sdist": true,
+    "reconstrucao_a_partir_sdist": true,
+    "arquivos_privados_excluidos": true,
+    "resolucao_constraints_referencia": true
+  }
+}

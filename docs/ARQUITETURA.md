@@ -30,6 +30,7 @@ Textos com mais de 450 palavras são agrupados em blocos com alvo de 150 palavra
 | Arquivo | Responsabilidade |
 |---|---|
 | `gui.py`, `gui_core.py`, `gui_worker.py` | Janela Tkinter, snapshots, regeneração seletiva e processamento isolado, com eventos estruturados. |
+| `caminhos.py` | Separa fontes, recursos distribuídos e dados graváveis na instalação por wheel. |
 | `tts.py` | Ponto de entrada CLI, orquestração do plano, inferência XTTS v2 e progresso. |
 | `segmentador.py` | Segmentação em blocos/frases, extração de tags de direção ([enfase], [pausa]) e preparação de texto. |
 | `vozes.py` | Roteamento de vozes, mapeamento de personagens, resolução de tons/estilos e locutores padrão PT/ES. |
@@ -83,3 +84,7 @@ A GUI não importa o pipeline no processo da janela. Um worker usa o Python conf
 Eventos comunicam plano, etapa, segmentos concluídos, resultado ou interrupção. A thread leitora do subprocesso envia eventos a uma fila limitada; o event loop do Tkinter é o único responsável por alterar widgets. Os logs visíveis também têm limite de tamanho.
 
 A interrupção é cooperativa, verificada antes de processar um segmento e antes da montagem. Após solicitação, o trecho em andamento termina, o cache é preservado e o manifesto recebe `interrompido`. Downloads, chamadas de inferência e exportação não são interrompidos no meio. O processo de validação emite progresso por segmento, reutilizando o mesmo transcritor.
+
+## Construção e instalação
+
+A lista de módulos e recursos é explícita no `pyproject.toml`. `scripts/construir.py` trabalha em uma cópia temporária pública para impedir que diretórios privados e metadados AppleDouble do volume externo contaminem a distribuição. A GUI e a API usam `caminhos.pasta_dados()` para dados graváveis; recursos instalados são localizados em `share/ttsbr` do ambiente Python. Os resultados de instalação e as validações restantes estão em [ESTABILIZACAO.md](ESTABILIZACAO.md).

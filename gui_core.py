@@ -8,11 +8,17 @@ import sys
 import threading
 import uuid
 
+from caminhos import pasta_dados
+
 ROOT = Path(__file__).resolve().parent
+DATA_ROOT = pasta_dados()
 PREFIXO_EVENTO = 'TTSBR_EVENT '
 
 
 def python_padrao():
+    # Uma instalação deve usar seu próprio ambiente, sem escolher outro venv pessoal.
+    if not (ROOT / 'pyproject.toml').is_file():
+        return sys.executable
     for pasta in (ROOT / '.venv', Path.home() / '.venvs' / 'ttsbr'):
         for relativo in ('bin/python', 'Scripts/python.exe'):
             candidato = pasta / relativo
@@ -42,7 +48,7 @@ def argumentos_sintese(pedido):
 
 
 def salvar_pedido(modo, texto, configuracao, origem=None, manifesto=None, pasta=None):
-    sessao = (Path(pasta) if pasta else ROOT / 'local' / 'gui' / 'execucoes') / uuid.uuid4().hex
+    sessao = (Path(pasta) if pasta else DATA_ROOT / 'local' / 'gui' / 'execucoes') / uuid.uuid4().hex
     sessao.mkdir(parents=True)
     entrada = sessao / 'roteiro.txt'
     entrada.write_text(texto, encoding='utf-8')
@@ -80,14 +86,15 @@ class ProcessoTrabalho:
             raise RuntimeError('Já existe uma tarefa em execução.')
         if not Path(python).is_file():
             raise ValueError('Selecione o executável Python do ambiente do TTSBR.')
+        DATA_ROOT.mkdir(parents=True, exist_ok=True)
         self.pedido = Path(pedido)
         ambiente = os.environ.copy()
         ambiente['PYTHONUNBUFFERED'] = '1'
         ambiente['PYTHONIOENCODING'] = 'utf-8'
-        ambiente.setdefault('NUMBA_CACHE_DIR', str(ROOT / 'local' / 'gui' / 'numba_cache'))
+        ambiente.setdefault('NUMBA_CACHE_DIR', str(DATA_ROOT / 'local' / 'gui' / 'numba_cache'))
         self.processo = subprocess.Popen(
             [str(python), '-u', str(ROOT / 'gui_worker.py'), str(pedido)],
-            cwd=str(ROOT), env=ambiente, stdin=subprocess.DEVNULL,
+            cwd=str(DATA_ROOT), env=ambiente, stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             text=True, encoding='utf-8', errors='replace',
             creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0,

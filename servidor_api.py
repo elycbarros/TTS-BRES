@@ -21,6 +21,7 @@ import tempfile
 import threading
 
 import tts
+from caminhos import pasta_dados
 
 OPENAI_VOICE_MAP = {
     "alloy": None,  # automático pelo idioma detectado
@@ -58,7 +59,7 @@ class MotorAPI:
     """Gerencia a execução thread-safe e o cache persistente de segmentos do servidor."""
 
     def __init__(self, pasta_cache: Path | str | None = None, dispositivo: str = "auto"):
-        self.pasta_cache = Path(pasta_cache or (Path(__file__).resolve().parent / "saida" / "api_cache"))
+        self.pasta_cache = Path(pasta_cache or (pasta_dados() / "saida" / "api_cache"))
         self.pasta_cache.mkdir(parents=True, exist_ok=True)
         self.dispositivo = dispositivo
         self.lock = threading.Lock()
@@ -66,13 +67,23 @@ class MotorAPI:
     def sintetizar(self, dados: dict) -> tuple[bytes, str]:
         if not isinstance(dados, dict):
             raise ValueError("O corpo da requisição deve ser um objeto JSON.")
-        texto = str(dados.get("input") or "").strip()
+        if not isinstance(dados.get("input"), str):
+            raise ValueError("O campo 'input' deve ser uma string.")
+        texto = dados["input"].strip()
         if not texto:
             raise ValueError("O campo 'input' é obrigatório e não pode ser vazio.")
         formato = str(dados.get("response_format") or "mp3").strip().lower()
         if formato not in CONTENT_TYPES:
             raise ValueError(f"Formato inválido ({formato!r}); use mp3, wav, srt ou vtt.")
-        velocidade = float(dados.get("speed", 1.1))
+        valor_velocidade = dados.get("speed", 1.1)
+        if isinstance(valor_velocidade, bool):
+            raise ValueError("O campo 'speed' deve ser numérico.")
+        try:
+            velocidade = float(valor_velocidade)
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ValueError("O campo 'speed' deve ser numérico.") from exc
+        if "limpar_referencia" in dados and not isinstance(dados["limpar_referencia"], bool):
+            raise ValueError("O campo 'limpar_referencia' deve ser booleano.")
         if not math.isfinite(velocidade) or not (0.25 <= velocidade <= 4.0):
             raise ValueError("O campo 'speed' deve estar entre 0.25 e 4.0.")
         idioma = str(dados.get("language") or dados.get("idioma") or "auto").strip().lower()

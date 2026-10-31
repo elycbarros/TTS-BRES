@@ -96,7 +96,7 @@ class SinteseInterrompida(Exception):
     """Interrupção solicitada entre segmentos, com cache preservado."""
 
 
-def main(argv=None, on_event=None, should_stop=None, modelo_precarregado=None):
+def main(argv=None, on_event=None, should_stop=None, modelo_precarregado=None, origem_referencias=None):
     def emitir(tipo, **dados):
         if on_event is not None:
             on_event({"tipo": tipo, **dados})
@@ -213,6 +213,8 @@ def main(argv=None, on_event=None, should_stop=None, modelo_precarregado=None):
     caminho_texto = Path(args.texto)
     try:
         texto = caminho_texto.read_text(encoding="utf-8-sig")
+        if origem_referencias is not None:
+            caminho_texto = Path(origem_referencias).resolve()
         glossario_extra = carregar_glossario(args.glossario, texto_path=args.texto)
         vozes_personagens = carregar_vozes_personagens(args.vozes_personagens, base_texto=caminho_texto)
         vozes_tons = carregar_vozes_personagens(args.vozes_tons, base_texto=caminho_texto)
@@ -352,7 +354,8 @@ def main(argv=None, on_event=None, should_stop=None, modelo_precarregado=None):
         "limpar_referencia": args.limpar_referencia, "max_tentativas": args.max_tentativas,
         "referencia_sha256": referencia,
         "fontes_sha256": {nome: hash_arquivo(Path(__file__).parent / nome)
-                          for nome in ("tts.py", "normalizador.py", "audio_persistente.py")},
+                          for nome in ("tts.py", "normalizador.py", "audio_persistente.py", "lexico.py",
+                                       "vozes.py", "segmentador.py", "processamento_audio.py", "caminhos.py")},
     }
     salvar_json(json_path, manifesto)
 
