@@ -11,37 +11,36 @@ Suporta Português Brasileiro ('pt') e Espanhol ('es') com detecção automátic
 """
 from __future__ import annotations
 
-import json
 from datetime import date
+import json
+from pathlib import Path
 import re
 import unicodedata
-from pathlib import Path
+
+# Tabelas léxicas e dicionários desacoplados em módulo dedicado
+from lexico import (
+    ABREVIACOES_ES,
+    ABREVIACOES_PT,
+    SIGLAS_ES,
+    SIGLAS_PTBR,
+    TERMOS_INGLES_ES,
+    TERMOS_INGLES_PTBR,
+    UNIDADES_ES,
+    UNIDADES_PTBR,
+    _CENTENAS,
+    _CENTENAS_ES,
+    _DEZENAS,
+    _DEZENAS_ES,
+    _TOKENS_ES,
+    _TOKENS_PT,
+    _UNIDADES,
+    _UNIDADES_ES,
+)
+
 
 # ---------------------------------------------------------------------------
 # 1. Detecção Automática de Idioma
 # ---------------------------------------------------------------------------
-_TOKENS_ES = {
-    "el", "la", "los", "las", "del", "al", "y", "en", "es", "un", "una",
-    "unos", "unas", "con", "por", "para", "su", "sus", "como", "más",
-    "pero", "este", "esta", "estos", "estas", "entre", "cuando", "también",
-    "sobre", "ser", "son", "fue", "había", "era", "tiene", "tienen", "hacer",
-    "todo", "todos", "toda", "todas", "puede", "pueden", "así", "desde",
-    "hasta", "sin", "año", "años", "después", "hacia", "decir", "aprendizaje",
-    "inteligencia", "modelo", "datos", "redes", "entrenamiento", "red",
-}
-
-_TOKENS_PT = {
-    "o", "a", "os", "as", "do", "da", "dos", "das", "no", "na", "nos",
-    "nas", "em", "é", "um", "uma", "uns", "umas", "com", "por", "para",
-    "seu", "sua", "seus", "suas", "como", "mais", "mas", "este", "esta",
-    "estes", "estas", "entre", "quando", "também", "sobre", "ser", "são",
-    "foi", "havia", "era", "tem", "têm", "fazer", "tudo", "todos", "toda",
-    "todas", "pode", "podem", "assim", "desde", "até", "sem", "ano",
-    "anos", "depois", "não", "dizer", "você", "vocês", "aprendizado",
-    "inteligência", "dados", "treinamento", "rede",
-}
-
-
 def detectar_idioma(texto: str) -> str:
     """Detecta automaticamente se o texto está em espanhol ('es') ou português ('pt')."""
     t = unicodedata.normalize("NFC", texto).lower()
@@ -67,444 +66,8 @@ def detectar_idioma(texto: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# 2. Abreviações
+# 2. Números por Extenso em Português
 # ---------------------------------------------------------------------------
-ABREVIACOES_PT: list[tuple[str, str]] = [
-    (r"\bp\.\s*ex\.", "por exemplo,"),
-    (r"\bex\.\s*:", "por exemplo:"),
-    (r"\bex\.", "por exemplo,"),
-    (r"\betc\.", "etcétera"),
-    (r"\bvs\.", "versus"),
-    (r"\bvs\b", "versus"),
-    (r"\bDr\.", "Doutor"),
-    (r"\bDra\.", "Doutora"),
-    (r"\bSr\.", "Senhor"),
-    (r"\bSra\.", "Senhora"),
-    (r"\bProf\.", "Professor"),
-    (r"\bProfa\.", "Professora"),
-    (r"\bpág\.", "página"),
-    (r"\bpágs\.", "páginas"),
-    (r"\bfig\.", "figura"),
-    (r"\bfigs\.", "figuras"),
-    (r"\bcap\.", "capítulo"),
-    (r"\baprox\.", "aproximadamente"),
-]
-
-ABREVIACOES_ES: list[tuple[str, str]] = [
-    (r"\bp\.\s*ej\.", "por ejemplo,"),
-    (r"\bej\.\s*:", "por ejemplo:"),
-    (r"\bej\.", "por ejemplo,"),
-    (r"\betc\.", "etcétera"),
-    (r"\bvs\.", "versus"),
-    (r"\bvs\b", "versus"),
-    (r"\bDr\.", "Doctor"),
-    (r"\bDra\.", "Doctora"),
-    (r"\bSr\.", "Señor"),
-    (r"\bSra\.", "Señora"),
-    (r"\bProf\.", "Profesor"),
-    (r"\bProfa\.", "Profesora"),
-    (r"\bpág\.", "página"),
-    (r"\bpágs\.", "páginas"),
-    (r"\bfig\.", "figura"),
-    (r"\bfigs\.", "figuras"),
-    (r"\bcap\.", "capítulo"),
-    (r"\baprox\.", "aproximadamente"),
-]
-
-
-# ---------------------------------------------------------------------------
-# 3. Glossários de Termos Técnicos em Inglês
-# ---------------------------------------------------------------------------
-TERMOS_INGLES_PTBR: dict[str, str] = {
-    "deep learning": "díp lérnin",
-    "machine learning": "maxíne lérnin",
-    "reinforcement learning": "reinforcement lérnin",
-    "transfer learning": "trânsfer lérnin",
-    "supervised learning": "superváized lérnin",
-    "unsupervised learning": "ãn-superváized lérnin",
-    "self-supervised learning": "sélf superváized lérnin",
-    "federated learning": "féderêited lérnin",
-    "forward pass": "fóruard páss",
-    "backward pass": "béqui-uard páss",
-    "fine-tuning": "fáin túnin",
-    "fine tuning": "fáin túnin",
-    "zero-shot": "zéro xót",
-    "zero shot": "zéro xót",
-    "few-shot": "fíu xót",
-    "few shot": "fíu xót",
-    "one-shot": "uãn xót",
-    "chain-of-thought": "tchêin óv fót",
-    "chain of thought": "tchêin óv fót",
-    "random forest": "rândom fórest",
-    "gradient boosting": "grêidient bústin",
-    "learning rate": "lârnin rêit",
-    "batch normalization": "bétch normalizêixon",
-    "layer normalization": "lêier normalizêixon",
-    "feature engineering": "fítchur endjinírin",
-    "ground truth": "gráund trúf",
-    "bounding box": "báundin bóks",
-    "bounding boxes": "báundin bókses",
-    "grid search": "gríd sârtch",
-    "random search": "rândom sârtch",
-    "data science": "dêita sáiens",
-    "data scientist": "dêita sáientist",
-    "big data": "bíg dêita",
-    "data mining": "dêita máinin",
-    "data warehouse": "dêita uér-ráus",
-    "data lake": "dêita lêik",
-    "open source": "ôupen sôrs",
-    "open-source": "ôupen sôrs",
-    "cloud computing": "cláud compíutin",
-    "edge computing": "édj compíutin",
-    "computer vision": "compíuter víjon",
-    "natural language processing": "nétchural lênguadj procéssin",
-    "large language models": "lárdj lênguadj módels",
-    "large language model": "lárdj lênguadj módel",
-    "neural networks": "níural nétuorks",
-    "neural network": "níural nétuork",
-    "state-of-the-art": "stêit óv dê árt",
-    "state of the art": "stêit óv dê árt",
-    "trade-offs": "trêid-ófs",
-    "trade-off": "trêid-óf",
-    "tradeoff": "trêid-óf",
-    "self-attention": "sélf atênxon",
-    "cross-attention": "crós atênxon",
-    "multi-head attention": "mâlti-réd atênxon",
-    "mini-batch": "míni-bétch",
-    "mini-batches": "míni-bétches",
-    "backpropagation": "béqui-propagêixon",
-    "overfitting": "ôver-fítin",
-    "underfitting": "ânder-fítin",
-    "dropout": "dróp-áut",
-    "pooling": "púlin",
-    "max-pooling": "méks-púlin",
-    "stride": "stráid",
-    "padding": "pédin",
-    "softmax": "sóft-méks",
-    "relu": "rê-lú",
-    "leaky relu": "líki rê-lú",
-    "sigmoid": "sigmóid",
-    "attention": "atênxon",
-    "autoencoders": "áuto-encôuders",
-    "autoencoder": "áuto-encôuder",
-    "encoders": "encôuders",
-    "encoder": "encôuder",
-    "decoders": "decôuders",
-    "decoder": "decôuder",
-    "tokenizers": "tôukenáizers",
-    "tokenizer": "tôukenáizer",
-    "tokens": "tôukens",
-    "token": "tôukem",
-    "embeddings": "embédins",
-    "embedding": "embédin",
-    "datasets": "dêita-séts",
-    "dataset": "dêita-sét",
-    "dataframes": "dêita-frêims",
-    "dataframe": "dêita-frêim",
-    "batches": "bétches",
-    "batch": "bétch",
-    "epochs": "épocs",
-    "epoch": "époc",
-    "layers": "lêiers",
-    "layer": "lêier",
-    "bias": "báias",
-    "loss": "lós",
-    "checkpoints": "tchék-póints",
-    "checkpoint": "tchék-póint",
-    "baselines": "bêis-láins",
-    "baseline": "bêis-láin",
-    "benchmarks": "bêntch-márks",
-    "benchmark": "bêntch-márk",
-    "pipelines": "páip-láins",
-    "pipeline": "páip-láin",
-    "frameworks": "frêim-uôrks",
-    "framework": "frêim-uôrk",
-    "workflows": "uôrk-flôus",
-    "workflow": "uôrk-flôu",
-    "deployment": "deplóiment",
-    "deploy": "deplói",
-    "runtime": "rãn-táim",
-    "backend": "bék-ênd",
-    "frontend": "frônt-ênd",
-    "fullstack": "fúl-sték",
-    "hardware": "rárduér",
-    "software": "sóftuér",
-    "cloud": "cláud",
-    "clusters": "clâsters",
-    "cluster": "clâster",
-    "serverless": "sârver-lés",
-    "streaming": "strímin",
-    "buffer": "bâfer",
-    "cache": "quéche",
-    "threads": "tréds",
-    "thread": "tréd",
-    "prompts": "prômpts",
-    "prompt": "prômpt",
-    "chatbots": "tchét-bóts",
-    "chatbot": "tchét-bót",
-    "chat": "tchét",
-    "feedbacks": "fíd-béks",
-    "feedback": "fíd-bék",
-    "inputs": "ínputs",
-    "input": "ínput",
-    "outputs": "áutputs",
-    "output": "áutput",
-    "insights": "insáits",
-    "insight": "insáit",
-    "features": "fítchurs",
-    "feature": "fítchur",
-    "labels": "lêibols",
-    "label": "lêibol",
-    "outliers": "áut-láiers",
-    "outlier": "áut-láier",
-    "scripts": "scrípts",
-    "script": "scrípt",
-    "debug": "debâg",
-    "bugs": "bâgs",
-    "bug": "bâg",
-    "arrays": "arrêis",
-    "array": "arrêi",
-    "strings": "stríngs",
-    "string": "stríng",
-    "design": "dezáin",
-    "layout": "leiáut",
-    "pixels": "píkseis",
-    "pixel": "píksel",
-}
-
-TERMOS_INGLES_ES: dict[str, str] = {
-    "deep learning": "díp lérnin",
-    "machine learning": "machín lérnin",
-    "reinforcement learning": "reinforcement lérnin",
-    "forward pass": "fórward pas",
-    "backward pass": "bákward pas",
-    "fine-tuning": "fáin tiúnin",
-    "fine tuning": "fáin tiúnin",
-    "zero-shot": "zéro shot",
-    "few-shot": "fíu shot",
-    "random forest": "rándom fórest",
-    "gradient boosting": "grêidient bústin",
-    "data science": "deita sáiens",
-    "big data": "big deita",
-    "computer vision": "compiúter víshon",
-    "natural language processing": "náchural lángüidj prosésin",
-    "neural networks": "niúral nétuorks",
-    "neural network": "niúral nétuork",
-    "trade-off": "treid-of",
-    "trade-offs": "treid-ofs",
-    "backpropagation": "bék-propagüéishon",
-    "overfitting": "óver-fítin",
-    "underfitting": "ánder-fítin",
-    "dropout": "drop-áut",
-    "softmax": "soft-maks",
-    "relu": "re-lú",
-    "tokens": "tókens",
-    "token": "tóken",
-    "embeddings": "embédins",
-    "embedding": "embédin",
-    "datasets": "deitaséts",
-    "dataset": "deitasét",
-    "dataframes": "deitafréims",
-    "dataframe": "deitafréim",
-    "batches": "bátches",
-    "batch": "bátch",
-    "hardware": "járduer",
-    "software": "sóftuer",
-    "cloud": "cláud",
-    "streaming": "strímin",
-    "prompts": "prompts",
-    "prompt": "prompt",
-    "chatbot": "chátbot",
-    "chatbots": "chátbots",
-    "feedback": "fídbak",
-    "feedbacks": "fídbaks",
-    "insights": "ínsaits",
-    "insight": "ínsait",
-    "online": "on-láin",
-    "offline": "of-láin",
-    "pixels": "píxeles",
-    "pixel": "píxel",
-}
-
-
-# ---------------------------------------------------------------------------
-# 4. Siglas e Variáveis Maiúsculas (Case-sensitive)
-# ---------------------------------------------------------------------------
-SIGLAS_PTBR: dict[str, str] = {
-    "IAs": "i-ás",
-    "IA": "i-á",
-    "AI": "êi-ái",
-    "ML": "ême-éle",
-    "DL": "dê-éle",
-    "LLMs": "éle-éle-êmes",
-    "LLM": "éle-éle-ême",
-    "NLP": "êne-éle-pê",
-    "PLN": "pê-éle-êne",
-    "GPUs": "gê-pê-ús",
-    "GPU": "gê-pê-ú",
-    "CPUs": "cê-pê-ús",
-    "CPU": "cê-pê-ú",
-    "TPUs": "tê-pê-ús",
-    "TPU": "tê-pê-ú",
-    "NPUs": "êne-pê-ús",
-    "NPU": "êne-pê-ú",
-    "VRAM": "vê-rã",
-    "RAM": "rã",
-    "SSD": "ésse-ésse-dê",
-    "APIs": "á-pê-ís",
-    "API": "á-pê-í",
-    "SDK": "ésse-dê-cá",
-    "URLs": "ú-érre-éles",
-    "URL": "ú-érre-éle",
-    "HTTPS": "agá-tê-tê-pê-ésse",
-    "HTTP": "agá-tê-tê-pê",
-    "HTML": "agá-tê-ême-éle",
-    "CSS": "cê-ésse-ésse",
-    "NoSQL": "nôu-ésse-quê-éle",
-    "SQL": "ésse-quê-éle",
-    "JSON": "djêisson",
-    "XML": "xis-ême-éle",
-    "CSV": "cê-ésse-vê",
-    "PDF": "pê-dê-éfe",
-    "CNNs": "cê-êne-ênes",
-    "CNN": "cê-êne-êne",
-    "RNNs": "érre-êne-ênes",
-    "RNN": "érre-êne-êne",
-    "LSTMs": "éle-ésse-tê-êmes",
-    "LSTM": "éle-ésse-tê-ême",
-    "GANs": "gãns",
-    "GAN": "gãn",
-    "VAE": "vê-á-ê",
-    "RAG": "rég",
-    "GPT": "gê-pê-tê",
-    "TI": "tê-í",
-    "IoT": "i-ó-tê",
-    "AWS": "á-dáblio-ésse",
-    "GCP": "gê-cê-pê",
-    "1D": "um dê",
-    "2D": "dois dê",
-    "3D": "três dê",
-    "4D": "quatro dê",
-    "X": "chís",
-    "Y": "ípsilon",
-    "Z": "zê",
-    "W": "dáblio",
-    "K": "cá",
-}
-
-SIGLAS_ES: dict[str, str] = {
-    "IAs": "i-as",
-    "IA": "i-a",
-    "AI": "ei-ai",
-    "ML": "eme-ele",
-    "DL": "de-ele",
-    "LLMs": "ele-ele-emes",
-    "LLM": "ele-ele-eme",
-    "NLP": "ene-ele-pe",
-    "PLN": "pe-ele-ene",
-    "GPUs": "je-pe-ús",
-    "GPU": "je-pe-ú",
-    "CPUs": "ce-pe-ús",
-    "CPU": "ce-pe-ú",
-    "TPUs": "te-pe-ús",
-    "TPU": "te-pe-ú",
-    "NPUs": "ene-pe-ús",
-    "NPU": "ene-pe-ú",
-    "RAM": "ram",
-    "SSD": "ese-ese-de",
-    "APIs": "a-pe-ís",
-    "API": "a-pe-í",
-    "SDK": "ese-de-ka",
-    "URLs": "u-ere-eles",
-    "URL": "u-ere-ele",
-    "HTTPS": "hache-te-te-pe-ese",
-    "HTTP": "hache-te-te-pe",
-    "HTML": "hache-te-eme-ele",
-    "CSS": "ce-ese-ese",
-    "NoSQL": "no-ese-cu-ele",
-    "SQL": "ese-cu-ele",
-    "JSON": "yeison",
-    "XML": "equis-eme-ele",
-    "CSV": "ce-ese-uve",
-    "PDF": "pe-de-efe",
-    "CNNs": "ce-ene-enes",
-    "CNN": "ce-ene-ene",
-    "RNNs": "erre-ene-enes",
-    "RNN": "erre-ene-ene",
-    "LSTMs": "ele-ese-te-emes",
-    "LSTM": "ele-ese-te-eme",
-    "GANs": "gans",
-    "GAN": "gan",
-    "RAG": "rag",
-    "GPT": "je-pe-te",
-    "TI": "te-í",
-    "IoT": "i-o-te",
-    "1D": "un de",
-    "2D": "dos de",
-    "3D": "tres de",
-    "4D": "cuatro de",
-    "X": "equis",
-    "Z": "zeta",
-    "W": "doble ve",
-    "K": "ka",
-}
-
-UNIDADES_PTBR: dict[str, tuple[str, str]] = {
-    "ms": ("milissegundo", "milissegundos"),
-    "s": ("segundo", "segundos"),
-    "min": ("minuto", "minutos"),
-    "h": ("hora", "horas"),
-    "Hz": ("hertz", "hertz"),
-    "kHz": ("quilohertz", "quilohertz"),
-    "MHz": ("megahertz", "megahertz"),
-    "GHz": ("gigahertz", "gigahertz"),
-    "KB": ("quilobyte", "quilobytes"),
-    "MB": ("megabyte", "megabytes"),
-    "GB": ("gigabyte", "gigabytes"),
-    "TB": ("terabyte", "terabytes"),
-    "km": ("quilômetro", "quilômetros"),
-    "cm": ("centímetro", "centímetros"),
-    "mm": ("milímetro", "milímetros"),
-}
-
-
-# ---------------------------------------------------------------------------
-# 5. Números por Extenso em Português e Espanhol
-# ---------------------------------------------------------------------------
-UNIDADES_ES: dict[str, tuple[str, str]] = {
-    "ms": ("milisegundo", "milisegundos"),
-    "s": ("segundo", "segundos"),
-    "min": ("minuto", "minutos"),
-    "h": ("hora", "horas"),
-    "Hz": ("hercio", "hercios"),
-    "kHz": ("kilohercio", "kilohercios"),
-    "MHz": ("megahercio", "megahercios"),
-    "GHz": ("gigahercio", "gigahercios"),
-    "KB": ("kilobyte", "kilobytes"),
-    "MB": ("megabyte", "megabytes"),
-    "GB": ("gigabyte", "gigabytes"),
-    "TB": ("terabyte", "terabytes"),
-    "km": ("kilómetro", "kilómetros"),
-    "cm": ("centímetro", "centímetros"),
-    "mm": ("milímetro", "milímetros"),
-}
-
-# --- Português ---
-_UNIDADES = [
-    "zero", "um", "dois", "três", "quatro", "cinco", "seis", "sete", "oito", "nove",
-    "dez", "onze", "doze", "treze", "quatorze", "quinze", "dezesseis", "dezessete",
-    "dezoito", "dezenove",
-]
-_DEZENAS = [
-    "", "", "vinte", "trinta", "quarenta", "cinquenta",
-    "sessenta", "setenta", "oitenta", "noventa",
-]
-_CENTENAS = [
-    "", "cento", "duzentos", "trezentos", "quatrocentos", "quinhentos",
-    "seiscentos", "setecentos", "oitocentos", "novecentos",
-]
-
-
 def _ate_999(n: int) -> str:
     if n == 0:
         return ""
@@ -538,7 +101,7 @@ def numero_por_extenso(n: int) -> str:
         (1_000, "mil", "mil"),
         (1, "", ""),
     ]
-    partes: list[str] = []
+    partes: list[tuple[int, str]] = []
     restante = n
     for divisor, sing, plur in grupos:
         if restante >= divisor:
@@ -574,6 +137,9 @@ def _converter_decimal(parte_int: str, parte_dec: str) -> str:
     return f"{inteiro} vírgula {dec_txt}"
 
 
+# ---------------------------------------------------------------------------
+# 3. Contextos Numéricos (Datas, Horários, Moedas em PT e ES)
+# ---------------------------------------------------------------------------
 def normalizar_contextos_numericos(texto: str, idioma: str) -> str:
     """Datas D/M/AAAA, horários 24 h, moedas explícitas e negativos PT/ES."""
     es = idioma == "es"
@@ -608,11 +174,13 @@ def normalizar_contextos_numericos(texto: str, idioma: str) -> str:
             raise ValueError(f"Horário inválido: {m[0]}")
         hora = "hora" if h == 1 else "horas"
         partes = [f"{feminino(h)} {hora}"]
+
         def masculino(n):
             t = numero(n)
             if es and t.endswith('veintiuno'):
                 return t[:-9] + 'veintiún'
             return t[:-3] + 'un' if es and t.endswith('uno') else t
+
         if minuto:
             partes.append(f"{masculino(minuto)} {'minuto' if minuto == 1 else 'minutos'}")
         if segundo:
@@ -637,6 +205,7 @@ def normalizar_contextos_numericos(texto: str, idioma: str) -> str:
         n, centavos = int(inteiro), int(fracao.ljust(2, '0') or '0')
         if n > 999_999_999_999:
             raise ValueError(f"Valor monetário fora do limite: {m[0]}")
+
         def quantidade(n):
             t = numero(n)
             if es and t.endswith('veintiuno'):
@@ -644,6 +213,7 @@ def normalizar_contextos_numericos(texto: str, idioma: str) -> str:
             if es and t.endswith('uno'):
                 return t[:-3] + 'un'
             return t
+
         singular, plural = moedas[moeda][1 if es else 0]
         conector = " de " if n >= 1_000_000 and n % 1_000_000 == 0 else " "
         partes = [f"{quantidade(n)}{conector}{singular if n == 1 else plural}"]
@@ -703,23 +273,9 @@ def normalizar_numeros_e_simbolos_pt(texto: str) -> str:
     return texto
 
 
-# --- Espanhol ---
-_UNIDADES_ES = [
-    "cero", "uno", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve",
-    "diez", "once", "doce", "trece", "catorce", "quince", "dieciséis", "diecisiete",
-    "dieciocho", "diecinueve", "veinte", "veintiuno", "veintidós", "veintitrés",
-    "veinticuatro", "veinticinco", "veintiséis", "veintisiete", "veintiocho", "veintinueve",
-]
-_DEZENAS_ES = [
-    "", "", "", "treinta", "cuarenta", "cincuenta",
-    "sesenta", "setenta", "ochenta", "noventa",
-]
-_CENTENAS_ES = [
-    "", "ciento", "doscientos", "trescientos", "cuatrocientos", "quinientos",
-    "seiscientos", "setecientos", "ochocientos", "novecientos",
-]
-
-
+# ---------------------------------------------------------------------------
+# 4. Números por Extenso em Espanhol
+# ---------------------------------------------------------------------------
 def _ate_999_es(n: int) -> str:
     if n == 0:
         return ""
@@ -834,7 +390,7 @@ def normalizar_numeros_e_simbolos_es(texto: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# 6. Pipelines de Normalização
+# 5. Pipelines de Normalização e Expansão
 # ---------------------------------------------------------------------------
 def expandir_abreviacoes(texto: str, idioma: str = "pt") -> str:
     """Expande abreviações com ponto antes de dividir o texto em frases."""

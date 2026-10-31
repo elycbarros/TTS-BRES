@@ -35,7 +35,8 @@ Textos com mais de 450 palavras são agrupados em blocos com alvo de 150 palavra
 | `vozes.py` | Roteamento de vozes, mapeamento de personagens, resolução de tons/estilos e locutores padrão PT/ES. |
 | `processamento_audio.py` | Corte de silêncio residual XTTS, compactação de pausas internas, normalização de ganho e detecção de anomalias. |
 | `servidor_api.py` | *(Beta)* Servidor HTTP local compatível com o endpoint `/v1/audio/speech` da OpenAI, reutilizando o cache. |
-| `normalizador.py` | Detecção PT/ES, abreviações, números e glossários. |
+| `normalizador.py` | Pipeline fonético, conversão de números/datas/moedas para extenso e regras de pronúncia. |
+| `lexico.py` | Tabelas estáticas, vocabulário PT/ES, siglas, termos técnicos de IA e abreviações. |
 | `audio_persistente.py` | Chaves, integridade, higienização de referência, gravação dos segmentos, legendas `.srt`/`.vtt`, montagem e exportação (LUFS, resampling e BGM ducking). |
 | `validar_audio.py` | ASR, alinhamento, WER, agregação e relatórios. |
 | `qualidade_audio.py` | Duração, energia RMS, pico e amostras próximas da saturação. |
