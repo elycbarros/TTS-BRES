@@ -163,6 +163,12 @@ class TestGlossarioCustomizado(unittest.TestCase):
         self.assertIn("dois ânos", res)
         self.assertIn("dez ânos", res)
 
+    def test_conjuncao_y_espanhol_nao_vira_ye(self):
+        # Garante que a conjunção "Y" em início de frase em espanhol não seja tratada como sigla da letra Y ("ye")
+        res, _ = normalizar_para_fala("Y en el versículo tres dice: Y entonces ocurrió.", idioma="es")
+        self.assertTrue(res.startswith("Y en el"))
+        self.assertNotIn("ye en el", res.lower())
+
 
 if __name__ == "__main__":
     unittest.main()

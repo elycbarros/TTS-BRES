@@ -43,6 +43,7 @@ dist/
 /referencias/
 /entradas/
 /teste*.txt
+/roteiro*.txt
 /glossario.json
 /glossario.txt
 *.glossario.json
@@ -51,6 +52,7 @@ dist/
 # Áudios, modelos, cache de síntese e relatórios de execução
 /saida/
 /outputs/
+/output/
 /work/
 *.wav
 *.mp3

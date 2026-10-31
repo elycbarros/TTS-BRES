@@ -444,7 +444,6 @@ SIGLAS_ES: dict[str, str] = {
     "3D": "tres de",
     "4D": "cuatro de",
     "X": "equis",
-    "Y": "ye",
     "Z": "zeta",
     "W": "doble ve",
     "K": "ka",
