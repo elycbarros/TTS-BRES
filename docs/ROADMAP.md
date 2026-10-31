@@ -5,8 +5,9 @@ Este documento consolida as sugestões e prioridades planejadas para as próxima
 ---
 
 ## 1. 🗣️ Fonética PT-BR e Naturalidade de Prosódia
-- [ ] **Expansão do dicionário de IA e tecnologia**:
-  - Adicionar termos frequentes com guia de pronúncia: *fine-tuning*, *embeddings*, *pipeline*, *benchmark*, *framework*, *prompt*, *dataset*, *tokenization*, *loss function*, *inference*.
+- [x] **Modularização do léxico e expansão de IA e tecnologia** *(Entregue em `lexico.py`)*:
+  - Dicionário desacoplado com vocabulário técnico de IA (*fine-tuning*, *embeddings*, *pipeline*, *benchmark*, *framework*, *prompt*, *dataset*, *tokenizer*, *dropout*, *backpropagation*, *autoencoder*).
+  - Próximos termos a adicionar: *tokenization*, *loss function*, *inference*.
 - [ ] **Guia de tonicidade automática para paroxítonas suscetíveis a oxítonas**:
   - Mapear e tratar palavras paroxítonas em que modelos multilíngues (XTTS v2) tendem a deslizar a tonicidade para a última sílaba, aplicando acentuação gráfica auxiliar invisível na camada de fala (a exemplo do que foi implementado com sucesso para `\banos\b` → `ânos`).
 - [ ] **Normalização de grandezas e faixas compostas**:

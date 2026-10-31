@@ -1,5 +1,18 @@
 # Histórico de alterações
 
+## Refatoração arquitetural, modularização e correções — 31/10/2026
+
+- **Modularização do pipeline (`tts.py`)**: extração de módulos especializados com responsabilidade única:
+  - `segmentador.py`: fatiamento de frases, divisão em blocos de até 150 palavras, estimativas e parsing de tags (`[enfase]`, `[pausa:1.5s]`, `[tom:calmo]`).
+  - `vozes.py`: catálogo de vozes padrão (`pt`/`es`), mapeamento de apelidos de personagens e resolução de referências de áudio.
+  - `processamento_audio.py`: corte de silêncio residual do XTTS, compactação de pausas internas e guardrail de detecção de anomalias acústicas.
+- **Desacoplamento léxico (`lexico.py`)**: centralização de tabelas numéricas para extenso, siglas técnicas, unidades de medida e vocabulário técnico de IA em módulo dedicado, simplificando a manutenção e futuras adições.
+- **Estruturação da interface gráfica (`gui.py`)**: extração da classe `Aplicativo` para o nível de módulo com tipagem estática e desacoplamento do ciclo de vida do Tkinter.
+- **Padronização moderna do pacote (`pyproject.toml`)**: inclusão de manifesto PEP 518/621 com metadados do projeto, dependências, ferramentas de desenvolvimento e pontos de entrada de console (`ttsbr`, `ttsbr-gui`, `ttsbr-api`).
+- **Correção fonética em espanhol**: preservação da conjunção "Y" em início de frase, prevenindo conversão indevida para o nome da letra ("ye").
+- **Privacidade e ignore**: regras de exclusão de pastas de saída e roteiros pessoais no `.gitignore`.
+- **Diretrizes de projeto (`GEMINI.md`)**: diretriz de comandos de terminal com caminhos absolutos completos para o assistente.
+
 ## Revisão da documentação — 30/10/2026
 
 - Prioridade de referências de tom, personagem e voz global alinhada ao código.

@@ -618,10 +618,14 @@ TTSBR/
 ├── gui_worker.py            # processo de análise, síntese e validação
 ├── abrir_gui.command        # iniciador macOS
 ├── abrir_gui.bat            # iniciador Windows
-├── tts.py                   # CLI, síntese e exportação
+├── tts.py                   # CLI e orquestração da síntese XTTS v2
+├── segmentador.py           # fatiamento, tags de direção e divisão de blocos
+├── vozes.py                 # catálogo, apelidos de personagens e estilos de voz
+├── processamento_audio.py   # corte de silêncio residual, pausas internas e anti-alucinação
 ├── servidor_api.py          # servidor HTTP local compatível com OpenAI TTS (beta)
 ├── audio_persistente.py     # cache verificável, legendas e montagem em disco
-├── normalizador.py          # idioma, números e pronúncias PT/ES
+├── normalizador.py          # pipeline fonético e números por extenso PT/ES
+├── lexico.py                # tabelas léxicas, termos técnicos de IA e siglas PT/ES
 ├── validar_audio.py         # transcrição Whisper e WER por idioma/trecho
 ├── qualidade_audio.py       # métricas acústicas dos segmentos
 ├── avaliacao/               # corpus PT/ES e protocolo de audição
@@ -630,9 +634,11 @@ TTSBR/
 ├── docs/                    # referência, arquitetura e banner
 ├── LICENSE                  # MIT para código e documentação originais
 ├── THIRD_PARTY_NOTICES.md    # condições do modelo e de terceiros
-├── CHANGELOG.md             # histórico das três entregas
+├── CHANGELOG.md             # histórico de entregas e alterações
+├── pyproject.toml           # empacotamento, scripts de console e configurações
 ├── requirements.txt         # dependências da síntese
 ├── glossario.txt.exemplo    # modelo de glossário
+├── GEMINI.md                # regras e diretrizes de projeto do assistente
 ├── exemplos/                # roteiros públicos e neutros
 ├── tests/                   # testes de unidade e integração simulada
 └── saida/                   # saídas dos exemplos; ignorada pelo Git
