@@ -12,7 +12,7 @@ Esta etapa produz um candidato local de estabilização. Não declara a GUI ou o
 | Suíte original | 78 testes aprovados antes das alterações. |
 | Construção original | Falhou por descoberta automática de múltiplos diretórios locais como pacotes. |
 | Distribuição corrigida | Wheel e sdist construídos com lista explícita de módulos e recursos públicos. |
-| Instalação isolada | Ambiente novo macOS, Python 3.12; dependências resolvidas no índice público. |
+| Instalação isolada | Ambiente isolado macOS, Python 3.12; dependências resolvidas no índice público. |
 | Integridade de dependências | `uv pip check` e `pip check` sem requisitos quebrados. |
 | Comandos instalados | `ttsbr --help` e `ttsbr-api --help` funcionaram fora do checkout. Módulo GUI importável, sem Tkinter nesse Python. |
 | Isolamento de dados | Versão instalada separa dados graváveis do diretório dos módulos. Recursos da documentação incluídos. |
@@ -27,7 +27,7 @@ Esta etapa produz um candidato local de estabilização. Não declara a GUI ou o
 | HTTP real | Áudio WAV retornado com HTTP 200; requisição repetida recuperou o cache; velocidade nula retornou 400. |
 | HTTP automatizado | Rotas, JSON inválido, tipos inválidos, erros 400/404/500 e recuperação após erro exercitados por servidor local real. |
 
-O resumo público está em [resultado_estabilizacao.json](../avaliacao/resultado_estabilizacao.json). Ele contém o ambiente e as medições, sem roteiros privados ou caminhos da máquina. Os artefatos completos de execução e os áudios são locais e não entram no Git.
+O resumo público está em [resultado_estabilizacao.json](../avaliacao/resultado_estabilizacao.json). Ele contém apenas resultados agregados e observações sobre a execução. Os artefatos completos de execução e os áudios são locais e não entram no Git.
 
 A medição de WER não avalia naturalidade, sotaque ou qualidade de clonagem. A divergência observada foi `veintiún` / `veintiuno` após o ASR representar o valor como `21`. As métricas acústicas examinam os segmentos de fala antes de LUFS e trilha; o loudness do arquivo final foi medido separadamente.
 
@@ -57,14 +57,14 @@ A mudança de backend a partir do Torchaudio 2.9 é descrita na [documentação 
 Use Python 3.12 em um ambiente virtual. Tkinter continua dependendo da instalação do Python e não é instalado pelo extra de validação.
 
 ```bash
-cd /CAMINHO/DO/TTSBR && python3.12 -m venv .venv
-cd /CAMINHO/DO/TTSBR && .venv/bin/python -m pip install build
-cd /CAMINHO/DO/TTSBR && .venv/bin/python scripts/construir.py
-cd /CAMINHO/DO/TTSBR && .venv/bin/python -m pip install "dist/ttsbr-1.0.0-py3-none-any.whl[validacao]" -c constraints/macos-py312.txt
-cd /CAMINHO/DO/TTSBR && .venv/bin/python -m pip check
+python3.12 -m venv .venv
+.venv/bin/python -m pip install build
+.venv/bin/python scripts/construir.py
+.venv/bin/python -m pip install "dist/ttsbr-1.0.0-py3-none-any.whl[validacao]" -c constraints/macos-py312.txt
+.venv/bin/python -m pip check
 ```
 
-Os comandos acima são para o checkout deste Mac. Não recrie um ambiente já existente sem avaliar seu uso; escolha outro diretório para repetir a instalação limpa. O script de construção precisa de `build`; no Python 3.10 também precisa de `tomli`, disponível no extra `dev`.
+Execute os comandos acima a partir da pasta do projeto. Não recrie um ambiente já existente sem avaliar seu uso; escolha outro diretório para repetir a instalação limpa. O script de construção precisa de `build`; no Python 3.10 também precisa de `tomli`, disponível no extra `dev`.
 
 A lista em [constraints/macos-py312.txt](../constraints/macos-py312.txt) registra versões resolvidas e exercitadas no ambiente novo. Não é um lockfile universal: não a aplique como prova de compatibilidade Windows, outras arquiteturas ou outras versões de Python. Ela não inclui pesos dos modelos nem garante que esses arquivos estarão sempre disponíveis para download.
 

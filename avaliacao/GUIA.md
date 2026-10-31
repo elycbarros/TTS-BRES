@@ -51,7 +51,7 @@ A medição em [resultado_inicial.json](resultado_inicial.json) usou o corpus co
 | Avisos acústicos | Nenhum na amostra |
 | Naturalidade e sotaque | Não avaliados por audição |
 
-A única substituição foi `veintiún` / `veintiuno`, no trecho em que o Whisper escreveu `21`. O resultado é uma referência inicial desse ambiente e corpus, não uma garantia para outros textos. O JSON registra a configuração e hashes das fontes; mantenha esse arquivo como resultado histórico e grave novas medições em arquivos separados.
+A única substituição foi `veintiún` / `veintiuno`, no trecho em que o Whisper escreveu `21`. O resultado é uma referência inicial desse ambiente e corpus, não uma garantia para outros textos. O JSON registra resultados agregados; mantenha esse arquivo como resultado histórico e grave novas medições em arquivos separados.
 
 Os áudios e relatórios completos são gerados em `saida/`, que é ignorada pelo Git. Clonar o repositório não inclui esses arquivos: execute os comandos acima para obter uma nova amostra.
 

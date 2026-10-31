@@ -86,19 +86,19 @@ python -m pip install -r requirements.txt
 
 No Windows, ative o ambiente com `.venv\Scripts\activate`.
 
-Para este Mac, a referência de estabilização usa Python 3.12 e versões em `constraints/macos-py312.txt`. A instalação mais recente foi suficiente para vozes embutidas, mas falhou na leitura TorchCodec de referências sem bibliotecas compartilhadas do FFmpeg. Para reproduzir o ambiente de referência no checkout:
+Para macOS, há uma referência de dependências para Python 3.12 em `constraints/macos-py312.txt`. A instalação mais recente foi suficiente para vozes embutidas, mas falhou na leitura TorchCodec de referências sem bibliotecas compartilhadas do FFmpeg. Para reproduzir o ambiente de referência no checkout:
 
 ```bash
-cd /CAMINHO/DO/TTSBR && .venv/bin/python -m pip install -r requirements.txt -c constraints/macos-py312.txt
+.venv/bin/python -m pip install -r requirements.txt -c constraints/macos-py312.txt
 ```
 
 Essa lista é específica do ambiente macOS/Python 3.12 e não comprova compatibilidade Windows. O diagnóstico completo está em [Estabilização](docs/ESTABILIZACAO.md).
 
-A rodada de estabilização também verificou instalação isolada em macOS com Python 3.12. Os [resultados e limites](docs/ESTABILIZACAO.md) incluem o ambiente de referência e a lista do que falta testar no desktop e no Windows.
+A rodada de estabilização verificou instalação isolada em macOS com Python 3.12. Os [resultados e limites](docs/ESTABILIZACAO.md) incluem o ambiente de referência e a lista do que falta testar no desktop e no Windows.
 
 Para construir e instalar o pacote, prefira o [procedimento de construção limpa](docs/ESTABILIZACAO.md), especialmente em volumes externos. O extra `validacao` instala as ferramentas opcionais.
 
-A avaliação inicial foi executada com Python 3.12; as dependências atuais não estão fixadas por versão. Essa medição não garante compatibilidade com todas as versões de Python. O ambiente registrado pode ser consultado em [resultado_inicial.json](avaliacao/resultado_inicial.json).
+A avaliação inicial foi executada com Python 3.12; as dependências atuais não estão fixadas por versão. Essa medição não garante compatibilidade com todas as versões de Python. Os resultados agregados estão em [resultado_inicial.json](avaliacao/resultado_inicial.json).
 
 A exportação MP3 usa o `ffmpeg` do sistema. Quando ele não está disponível, o pipeline tenta usar o executável fornecido por `imageio-ffmpeg`, incluído nas dependências.
 
