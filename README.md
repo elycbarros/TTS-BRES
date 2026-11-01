@@ -14,6 +14,12 @@
 
 Converta arquivos `.txt` em MP3 ou WAV com normalização de números, siglas e termos técnicos, controle de pausas e alternância de locutores. A síntese é executada localmente; o primeiro uso requer acesso à internet para baixar o modelo.
 
+### Estado do projeto
+
+Projeto pessoal de IA generativa aplicada, em fase de estabilização e sem declaração de uso em produção. O backend, a instalação e a síntese real em CPU foram exercitados no macOS; os resultados e o escopo estão registrados em [Estabilização](docs/ESTABILIZACAO.md).
+
+**Limitações conhecidas:** a interface gráfica ainda precisa de validação visual em uma sessão desktop; o Windows não foi testado em uma máquina real. A qualidade percebida da clonagem com gravações pessoais também precisa ser avaliada por audição. A leitura de referências de voz depende da compatibilidade entre Torchaudio, TorchCodec e bibliotecas nativas do FFmpeg.
+
 > **Do texto ao áudio**
 > Arquivo `.txt` → validação e pronúncia → síntese ou cache → montagem em disco → MP3 / WAV
 
@@ -27,6 +33,7 @@ Converta arquivos `.txt` em MP3 ou WAV com normalização de números, siglas e 
 | Consultar argumentos, códigos de saída e campos JSON | [Referência de comandos e arquivos](docs/REFERENCIA.md) |
 | Entender persistência, montagem e recuperação | [Arquitetura do pipeline](docs/ARQUITETURA.md) |
 | Comparar versões e avaliar amostras PT/ES | [Guia de avaliação](avaliacao/GUIA.md) |
+| Preparar gravações de referência | Roteiros de captação em [português](exemplos/captacao_voz_pt.txt) e [espanhol](exemplos/captacao_voz_es.txt) |
 | Entender as licenças do código e do modelo | [Licença](#licenca) e [componentes de terceiros](THIRD_PARTY_NOTICES.md) |
 | Conferir a rodada de estabilização e pendências | [Estabilização](docs/ESTABILIZACAO.md) |
 | Consultar as alterações do projeto | [Histórico de alterações](CHANGELOG.md) |
@@ -562,6 +569,10 @@ Na pasta do projeto, com o ambiente virtual ativado:
 ```bash
 python -m unittest discover -s tests -v
 ```
+
+**Última execução da suíte:** em 01/11/2026, os 86 testes passaram em uma cópia do código do commit `cc7a1fb`, no macOS 27.2 (Apple Silicon / arm64), com Python 3.12.14 e ambiente virtual de dependências existente. Comando: `python -m unittest discover -s tests -v`. Os testes de API usam um servidor HTTP local.
+
+O resultado vale para esse código e ambiente; não comprova funcionamento em Windows ou validação visual da GUI. Os testes automatizados usam áudio simulado e não substituem os ensaios com os modelos e a audição descritos em [Estabilização](docs/ESTABILIZACAO.md).
 
 A suíte cobre detecção de idioma, números PT/ES, siglas, termos técnicos, abreviações, precedência e mescla de glossários, tags, pausas, corte de silêncio, divisão de frases, validação antecipada da CLI, nomes de saída com pontos e cálculo do WER.
 

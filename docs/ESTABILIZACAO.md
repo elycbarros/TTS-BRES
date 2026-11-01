@@ -104,7 +104,7 @@ A construção usa uma lista pública de módulos, documentação, exemplos e te
 
 - [ ] Resolver falhas graves eventualmente encontradas nas verificações acima.
 - [ ] Revisar os dados públicos e os avisos de licença.
-- [ ] Criar commit e push das correções. A remoção local de `GEMINI.md` do índice já estava pendente antes desta etapa e foi preservada.
+- [ ] Revisar e registrar eventuais correções adicionais antes da publicação estável.
 - [ ] Escolher explicitamente o número da release e atualizar os resultados caso o áudio ou o ambiente mudem.
 
 Até concluir essas pendências, a declaração correta é **backend e instalação exercitados no macOS/CPU, com GUI visual e Windows ainda pendentes**.

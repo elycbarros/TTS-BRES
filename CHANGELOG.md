@@ -1,5 +1,10 @@
 # Histórico de alterações
 
+## Documentação — 01/11/2026
+
+- Registrados o estado do projeto, as limitações conhecidas e a execução de 86 testes no macOS.
+- Incluídos roteiros de captação de voz em português e espanhol e atualizada a orientação de publicação na estabilização.
+
 ## Candidato local de estabilização — 31/10/2026
 
 - Corrigida a construção wheel/sdist com módulos e recursos explícitos e cópia temporária sem metadados AppleDouble.
