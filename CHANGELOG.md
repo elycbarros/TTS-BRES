@@ -1,6 +1,30 @@
 # Histórico de alterações
 
-## 1.1.0 — Fechamento da E4, fallback Torchaudio/SoundFile e promoção E0–E6 — 07/11/2026
+## 1.2.0 — Waveform, Audiolivros M4B, Léxico de IA/Tonicidade e Streaming HTTP — 07/11/2026
+
+- **Waveform interativo e catálogo de vozes (M1):**
+  - Renderização leve do envelope de amplitude no Canvas do `player_gui.py` usando `calcular_envelope_wav()` em blocos (`reproducao.py`), sem alocação desnecessária de memória.
+  - Agulha de reprodução vertical sincronizada com o transporte, scrub/seek interativo ao clicar ou arrastar no gráfico e marcadores visuais para picos saturados e silêncios.
+  - Catálogo unificado de vozes (`vozes.py`) combinando vozes embutidas do XTTS v2 por idioma com os perfis cadastrados na `BibliotecaVozes` (E1).
+  - Botão "Ouvir prévia da voz" na GUI para testar referências gravadas ou amostras nativas sem travar a interface.
+- **Audiolivros `.m4b` com capítulos embutidos (M2):**
+  - Geração de manifesto `;FFMETADATA1` (`audio_persistente.py`) com escapamento estrito de caracteres especiais e blocos `[CHAPTER]` com base de tempo `1/1000`.
+  - Exportação direta para contêiner `.m4b` (áudio AAC mono com `-movflags +faststart`) via flag `--m4b` ou pelo seletor de formatos.
+  - Suporte a arte de capa (`--capa <imagem.jpg|png>`) injetada como stream de vídeo estático (`attached_pic`) nos formatos `.m4b` e `.mp3`.
+  - Manifesto `.blocos.json` enriquecido com a lista de capítulos navegáveis (`capitulos_embutidos`).
+- **Fonética contextual, vocabulário de IA e novos tons (M3):**
+  - Guia contextual de tonicidade para o português brasileiro (`GUIA_TONICIDADE_PTBR` em `normalizador.py`), corrigindo deslizes fonéticos comuns em paroxítonas como *recorde*, *rubrica*, *circuito*, *gratuito*, *fluido*, *pudico*, *ibero*, etc., mantendo as legendas `.srt`/`.vtt` ortograficamente puras.
+  - Expansão léxica para termos de inteligência artificial e aprendizado de máquina (*tokenization*, *loss function*, *inference*, *checkpoint*, *overfitting*, *underfitting*, *zero-shot*, *few-shot*, *rag*, *latency*, *throughput*) com pronúncias adaptadas para PT-BR e ES.
+  - Novos perfis predefinidos de tom de locução nas tags `[tom:...]`: `noticia` (cadência ágil e pausas compactas), `narracao` (ritmo documental equilibrado) e `entusiasmado` (leve ganho de projeção e velocidade).
+  - Corpus público de avaliação ampliado de 24 para 30 casos de teste em `avaliacao/corpus_pt_es.txt`.
+- **Streaming HTTP de áudio em tempo real (M4):**
+  - Endpoint `/v1/audio/speech` compatível com OpenAI atualizado com suporte a `"stream": true` (ou query `?stream=1`) para formatos `wav`, `pcm` e `raw`.
+  - Resposta via `Transfer-Encoding: chunked` transmitindo blocos de áudio PCM mono a 24 kHz e pausas em tempo real assim que cada segmento é processado ou recuperado do cache.
+  - Cabeçalho WAV streaming de 44 bytes para reprodução direta em clientes de áudio sem espera pelo término da síntese.
+  - Tratamento resiliente de desconexão do cliente (`BrokenPipeError`/`ConnectionResetError`): cancelamento imediato e seguro entre segmentos via `should_stop`, liberação de travas e integridade absoluta do cache de segmentos.
+- **Estabilização e distribuição (M5):**
+  - Suíte de **192 testes** automatizados aprovada com 100% de sucesso no macOS Apple Silicon / Python 3.12.14.
+  - Pacote de distribuição `1.2.0` (`wheel` e `sdist`) gerado e validado em caminho com espaços e acentos.
 
 - Ensaio comparativo real XTTS v2 vs. OmniVoice 0.2.1 (`c5fdb5ccb189668d56333f77ba2629f4cd7535f4`) executado em PT-BR e ES (`mps` e `cpu`), com medição de carga fria, síntese quente, RTF, memória RSS, métricas acústicas e WER via Whisper (`0,0%` em ambos os motores).
 - Adicionado fallback automático via `soundfile` em `torchaudio.load` dentro de `motores.py` para manter a clonagem XTTS funcional em ambientes com Torchaudio ≥ 2.9 sem `libtorchcodec` nativo.

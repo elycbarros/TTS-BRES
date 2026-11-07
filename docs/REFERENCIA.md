@@ -27,9 +27,9 @@ A tabela completa de opções de síntese e pausas está no [README](../README.m
 - `--analisar` prepara e imprime os segmentos, sem carregar XTTS nem criar manifesto, cache ou áudio. As validações da entrada continuam ativas.
 - `--preset` aplica um perfil predefinido (`narracao`, `amostra` ou `revisao`); qualquer flag informada explicitamente na linha de comando prevalece sobre o preset.
 - `--por-capitulo` gera, além do áudio principal, um arquivo numerado por capítulo (`<saida>.cap01.mp3`, etc.) demarcado por `#` ou `##` no roteiro, com legendas recalculadas por capítulo. `--titulo` e `--autor` gravam metadados básicos nos arquivos de áudio.
-- `--saida` é o nome **base**. `aula.v2` gera `aula.v2.mp3`; `aula.mp3` gera `aula.mp3.mp3` se MP3 estiver selecionado.
-- Formatos são convertidos para minúsculas e duplicatas são removidas (`mp3`, `wav`, `srt`, `vtt`). Listas com itens vazios, como `mp3,`, são rejeitadas.
-- `--wav`, `--srt` e `--vtt` acrescentam respectivamente `.wav`, `.srt` e `.vtt` à lista; com `--formatos wav`, eles não acrescentam MP3.
+- `--m4b` exporta o audiolivro em formato M4B com índice de capítulos embutido (`FFMETADATA1`) navegável em tocadores compatíveis; `--capa` insere arte de capa (JPG/PNG).
+- Formatos aceitos em `--formatos`: `mp3`, `wav`, `m4b`, `srt`, `vtt`. Listas com itens vazios, como `mp3,`, são rejeitadas.
+- `--wav`, `--srt`, `--vtt` e `--m4b` acrescentam respectivamente `.wav`, `.srt`, `.vtt` e `.m4b` à lista de exportação.
 - `--refazer` ignora o cache válido e sobrescreve todos os segmentos gerados. `--refazer-segmentos 2,5` regera apenas os IDs indicados e preserva os demais do cache.
 - `--lufs` aplica normalização EBU R128 (`loudnorm`) no áudio final (`-70` a `-5`, ex.: `-16` para podcasts); `--taxa-amostragem` seleciona a frequência final (`24000`, `44100` ou `48000` Hz).
 - `--trilha` *(beta)* mistura uma trilha de fundo em loop com *auto-ducking* (`sidechaincompress`) e ganho base `--volume-trilha` (padrão `-18.0` dB).
@@ -136,7 +136,8 @@ python servidor_api.py --host 127.0.0.1 --porta 8000 --pasta-cache saida/api_cac
 | `input` | Obrigatório | Texto a sintetizar; não pode estar vazio. |
 | `voice` | Automático | Alias local, nome de locutor ou caminho de referência acessível ao servidor. `iapetus` é Xavier Hayasaka. |
 | `language` / `idioma` | `auto` | `auto`, `pt` ou `es`; `language` prevalece se informado. |
-| `response_format` | `mp3` | Um de `mp3`, `wav`, `srt` ou `vtt`. |
+| `response_format` | `mp3` (ou `wav` em stream) | Um de `mp3`, `wav`, `pcm`, `raw`, `srt` ou `vtt` (em streaming: `wav`, `pcm` ou `raw`). |
+| `stream` | `false` | Se `true`, ativa resposta em streaming (*chunked transfer encoding*) em tempo real. Também aceito via query `?stream=1`. |
 | `speed` | `1.1` | Número finito de 0,25 a 4. A faixa da API é validada antes da CLI. |
 | `lufs` | Desativado | Encaminhado para `--lufs`, com a mesma validação da CLI. |
 | `limpar_referencia` | Desativado | Valor booleano para ativar o tratamento da referência. |
@@ -149,7 +150,7 @@ $corpo = @{ model = 'tts-1'; input = 'Teste local de voz.'; voice = 'iapetus'; l
 Invoke-WebRequest -Uri 'http://127.0.0.1:8000/v1/audio/speech' -Method Post -ContentType 'application/json; charset=utf-8' -Body ([System.Text.Encoding]::UTF8.GetBytes($corpo)) -OutFile 'saida/api_exemplo.wav'
 ```
 
-O servidor limita o corpo da requisição a 2.000.000 bytes. Respostas de sucesso retornam o arquivo completo com código HTTP 200; erros de entrada tratados retornam 400, e erros internos tratados retornam 500. Isso não é streaming, mesmo quando o cliente envia parâmetros que peçam esse comportamento.
+O servidor limita o corpo da requisição a 2.000.000 bytes. Respostas síncronas retornam o arquivo com código HTTP 200; no modo `"stream": true`, o áudio é transmitido segmento a segmento com `Transfer-Encoding: chunked` (PCM mono a 24 kHz ou cabeçalho streaming WAV de 44 bytes), com cancelamento imediato e seguro entre trechos caso o cliente se desconecte (`BrokenPipeError`). Erros de entrada retornam 400 e erros internos retornam 500.
 
 `GET /v1/models` lista identificadores de compatibilidade; `tts-1`, `tts-1-hd` e `xtts_v2` não representam três modelos instalados. `GET /v1/voices` mostra nomes e aliases locais, sem prometer equivalência com vozes de outros serviços.
 

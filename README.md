@@ -78,9 +78,9 @@ Projeto pessoal de IA generativa aplicada, em fase de estabilização e sem decl
 | Texto e pronúncia | Voz e áudio | Conferência e ecossistema |
 |:---|:---|:---|
 | Detecção de PT-BR e espanhol | Múltiplos locutores e vozes clonadas por personagem | Transcrição com Whisper e WER |
-| Números, siglas e unidades por extenso | Tags de pausa, volume e tom (`[tom:calmo]`, `[enfase]`) | Exportação de legendas `.srt` e `.vtt` |
-| Glossários por arquivo e idioma | Exportação MP3, WAV, 24/44.1/48 kHz e masterização LUFS | Regeneração seletiva por trecho e auto-retry |
-| Pronúncia de termos técnicos | Trilha de fundo com *auto-ducking* e limpeza de referência *(beta)* | Servidor HTTP local compatível com OpenAI *(beta)* |
+| Números, siglas e unidades por extenso | Tags de pausa, volume e tom (`[tom:noticia]`, `[tom:narracao]`, `[tom:entusiasmado]`, `[enfase]`) | Exportação de legendas `.srt` e `.vtt` |
+| Guia de tonicidade PT-BR e léxico de IA | Exportação MP3, WAV, M4B (audiolivro com capítulos e capa), 24/44.1/48 kHz e LUFS | Player integrado com waveform interativo e catálogo de vozes |
+| Pronúncia de termos técnicos e glossários | Trilha de fundo com *auto-ducking* e limpeza de referência | Servidor HTTP local compatível com OpenAI (com streaming em tempo real) |
 | Datas, horários, moedas e negativos | Cache SHA-256 e retomada automática | Relatórios JSON por idioma e trecho |
 
 ---

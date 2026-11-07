@@ -87,9 +87,14 @@ Repita a geração com o mesmo nome de saída para retomar. A interface pode lev
 
 Ao fechar durante uma tarefa, a GUI pode aguardar a parada entre trechos ou o término da validação/exportação. Não há botão de encerramento forçado na primeira versão. Se uma biblioteca travar, a parada cooperativa não consegue interrompê-la.
 
-## Revisão e reprodução
+## Revisão e reprodução com forma de onda (Waveform)
 
-A E2 acrescenta player WAV opcional com reproduzir, pausar, parar e buscar. O player do sistema continua disponível. Não há controle de volume de reprodução nem forma de onda nesta entrega. Se WAV e MP3 estiverem disponíveis, o botão do resultado prefere WAV.
+A versão `1.2.0` inclui **player WAV com forma de onda interativa** (`Canvas` Tkinter) e transporte completo: reproduzir, pausar, parar, buscar e comparar tomadas A/B.
+
+- **Envelope de amplitude leve:** calculado em blocos (`reproducao.py`), exibindo picos normalizados e RMS sem travar a interface nem consumir memória desnecessária.
+- **Scrub e busca instantânea:** clique direto ou arraste na linha do tempo do canvas para saltar (`seek`) diretamente para a posição em segundos.
+- **Marcadores visuais de alerta:** barras de amplitude em destaque colorido para regiões com saturação (clip) ou silêncio prolongado.
+- **Catálogo e prévia auditiva de vozes:** seletor dinâmico que unifica vozes nativas do XTTS v2 por idioma e perfis cadastrados na Biblioteca de Vozes (E1), acompanhado do botão **"Ouvir prévia da voz"** para escuta imediata de amostras curtas.
 
 É possível abrir um manifesto concluído com **Abrir manifesto…**, sem gerar novamente o roteiro. Os arquivos do cache precisam continuar acessíveis. Depois de uma interrupção, gere novamente para retomar antes de validar o manifesto.
 

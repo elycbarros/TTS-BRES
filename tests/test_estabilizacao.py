@@ -47,8 +47,8 @@ class TestCaminhos(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='ttsbr dist espaço á-') as tmp:
             saida = Path(tmp) / 'dist'
             construir(saida)
-            wheels = list(saida.glob('ttsbr-1.1.0-*.whl'))
-            sdists = list(saida.glob('ttsbr-1.1.0.tar.gz'))
+            wheels = list(saida.glob('ttsbr-1.2.0-*.whl'))
+            sdists = list(saida.glob('ttsbr-1.2.0.tar.gz'))
             self.assertEqual(len(wheels), 1)
             self.assertEqual(len(sdists), 1)
             with zipfile.ZipFile(wheels[0]) as zf:

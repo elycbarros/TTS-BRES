@@ -126,8 +126,8 @@ M4 (Streaming HTTP na API Local) ──────────┘
 
 ## Resumo de Critérios para Publicar a `v1.2.0`
 
-- [ ] **M1:** Waveform interativo no player da GUI e catálogo unificado de vozes com prévia testados.
-- [ ] **M2:** Exportação `.m4b` com capítulos `FFMETADATA1` e capa opcional validada com FFmpeg real.
-- [ ] **M3:** Novos termos técnicos de IA, ajustes de tonicidade PT-BR e tags `[tom:noticia]`, `[tom:narracao]`, `[tom:entusiasmado]` cobertos por testes.
-- [ ] **M4:** Streaming HTTP em `/v1/audio/speech` com desconexão segura de cliente testado em servidor local real.
-- [ ] **M5:** 100% da suíte automatizada passando no macOS e pacotes `1.2.0` gerados sem artefatos privados ou arquivos AppleDouble.
+- [x] **M1:** Waveform interativo no player da GUI e catálogo unificado de vozes com prévia testados.
+- [x] **M2:** Exportação `.m4b` com capítulos `FFMETADATA1` e capa opcional validada com FFmpeg real.
+- [x] **M3:** Novos termos técnicos de IA, ajustes de tonicidade PT-BR e tags `[tom:noticia]`, `[tom:narracao]`, `[tom:entusiasmado]` cobertos por testes.
+- [x] **M4:** Streaming HTTP em `/v1/audio/speech` com desconexão segura de cliente testado em servidor local real.
+- [x] **M5:** 100% da suíte automatizada passando no macOS e pacotes `1.2.0` gerados sem artefatos privados ou arquivos AppleDouble.
