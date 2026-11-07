@@ -244,15 +244,13 @@ if TKINTER_DISPONIVEL:
             cb_preset = self._campo(lateral, "Preset", "preset", ("", "narracao", "amostra", "revisao"))
             cb_preset.bind("<<ComboboxSelected>>", lambda _e: self._aplicar_preset(self.vars["preset"].get()))
             self._campo(lateral, "Idioma", "idioma", ("auto", "pt", "es"))
+            from vozes import listar_vozes_embutidas
+            vozes_combo = ("Automática",) + tuple(listar_vozes_embutidas())
             self._campo(
                 lateral,
                 "Voz embutida",
                 "locutor",
-                (
-                    "Automática", "Luis Moray", "Alma María",
-                    "Iapetus (Xavier Hayasaka)", "Xavier Hayasaka", "Ferran Simen",
-                    "Ana Florence", "Sofia Hellen", "Marcos Rudaski"
-                ),
+                vozes_combo,
                 livre=True,
             )
             self._campo(lateral, "Velocidade · 1.0 é a original", "velocidade")
@@ -273,6 +271,10 @@ if TKINTER_DISPONIVEL:
             self.editaveis.append((b, "normal"))
 
             b = ttk.Button(lateral, text="Biblioteca de vozes…", command=self._biblioteca)
+            b.pack(fill="x", pady=(0, 10))
+            self.editaveis.append((b, "normal"))
+
+            b = ttk.Button(lateral, text="Ouvir prévia da voz", command=self._previa_voz)
             b.pack(fill="x", pady=(0, 10))
             self.editaveis.append((b, "normal"))
 
@@ -652,6 +654,70 @@ if TKINTER_DISPONIVEL:
                     self.root, self.vars['python'].get().strip(), selecionar, abrir_no_sistema)
             except (OSError, ValueError, sqlite3.Error) as exc:
                 self._erro(str(exc))
+
+        def _previa_voz(self) -> None:
+            if self.ocupado:
+                return
+            perfil_id = self.vars.get("perfil_voz", tk.StringVar()).get().strip()
+            voz_ref = self.vars.get("voz", tk.StringVar()).get().strip()
+            if perfil_id:
+                try:
+                    from biblioteca_vozes import BibliotecaVozes
+                    caminho_wav = BibliotecaVozes().resolver(perfil_id)
+                    self._player(caminho_wav)
+                    return
+                except Exception as exc:
+                    self._erro(f"Erro ao obter prévia da biblioteca: {exc}")
+                    return
+            if voz_ref and Path(voz_ref).is_file():
+                self._player(Path(voz_ref).resolve())
+                return
+
+            locutor = self.vars.get("locutor", tk.StringVar()).get().strip()
+            idioma = self.vars.get("idioma", tk.StringVar()).get().strip()
+            if not idioma or idioma == "auto":
+                idioma = "es" if locutor in ("Alma María", "Xavier Hayasaka", "Ferran Simen", "Claribel Dervla") else "pt"
+            if not locutor or locutor == "Automática":
+                from vozes import VOZES_PADRAO
+                locutor = VOZES_PADRAO.get(idioma, "Luis Moray")
+
+            pasta_previas = DATA_ROOT / "local" / "previas"
+            pasta_previas.mkdir(parents=True, exist_ok=True)
+            nome_limpo = "".join(c if c.isalnum() else "_" for c in locutor)
+            caminho_previa = pasta_previas / f"previa_{idioma}_{nome_limpo}.wav"
+
+            if caminho_previa.is_file():
+                self._player(caminho_previa)
+                return
+
+            from vozes import TEXTOS_PREVIA
+            texto = TEXTOS_PREVIA.get(idioma, TEXTOS_PREVIA["pt"])
+            self.status.set(f"Sintetizando prévia de {locutor}…")
+
+            def _gerar():
+                try:
+                    import subprocess
+                    python = self.vars['python'].get().strip() or sys.executable
+                    txt_temp = pasta_previas / f"temp_{idioma}_{nome_limpo}.txt"
+                    txt_temp.write_text(texto, encoding='utf-8')
+                    saida_base = pasta_previas / f"previa_{idioma}_{nome_limpo}"
+                    cmd = [
+                        python, "-B", str(ROOT / "tts.py"), str(txt_temp),
+                        "--locutor", locutor, "--idioma", idioma,
+                        "--velocidade", "1.0", "--formatos", "wav",
+                        "--saida", str(saida_base), "--preset", "amostra"
+                    ]
+                    r = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+                    if r.returncode == 0 and caminho_previa.is_file():
+                        self.root.after(0, lambda: self._player(caminho_previa))
+                        self.root.after(0, lambda: self.status.set(f"Prévia de {locutor} pronta."))
+                    else:
+                        self.root.after(0, lambda: self._erro(f"Falha ao gerar prévia: {r.stderr or r.stdout}"))
+                except Exception as exc:
+                    self.root.after(0, lambda: self._erro(f"Erro na prévia: {exc}"))
+
+            import threading
+            threading.Thread(target=_gerar, daemon=True).start()
 
         def _configuracao(self) -> dict:
             cfg = {k: v.get() for k, v in self.vars.items()}

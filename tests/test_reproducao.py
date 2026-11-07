@@ -10,8 +10,11 @@ import unittest
 from unittest.mock import patch, MagicMock
 import wave
 
-from reproducao import TransportePCM, executar
-from test_biblioteca_vozes import criar_wav
+from reproducao import TransportePCM, executar, calcular_envelope_wav
+try:
+    from test_biblioteca_vozes import criar_wav
+except ImportError:
+    from tests.test_biblioteca_vozes import criar_wav
 
 
 class TestTransportePCM(unittest.TestCase):
@@ -86,6 +89,43 @@ class TestTransportePCM(unittest.TestCase):
                 patch('sys.stdin', io.StringIO('')):
             with self.assertRaises(OSError): executar(self.wav)
         transporte.fechar.assert_called_once()
+
+    def test_calcular_envelope_wav_sucesso_e_saturacao(self):
+        env = calcular_envelope_wav(self.wav, colunas=50)
+        self.assertEqual(len(env['colunas']), 50)
+        self.assertAlmostEqual(env['duracao_s'], 1.0, places=1)
+        self.assertGreater(env['pico_max'], 0.0)
+        self.assertIn('tem_saturacao', env)
+        for col in env['colunas']:
+            self.assertGreaterEqual(col['pico'], 0.0)
+            self.assertLessEqual(col['pico'], 1.0)
+            self.assertGreaterEqual(col['rms'], 0.0)
+            self.assertLessEqual(col['rms'], 1.0)
+
+        # Arquivo com saturação explícita (amostra máxima 32767)
+        sat_wav = self.wav.with_name('sat.wav')
+        with wave.open(str(sat_wav), 'wb') as wf:
+            wf.setparams((1, 2, 24000, 0, 'NONE', 'not compressed'))
+            # 24000 amostras com pico 32767
+            wf.writeframes((b'\xff\x7f' * 12000) + (b'\x00\x00' * 12000))
+        env_sat = calcular_envelope_wav(sat_wav, colunas=20)
+        self.assertTrue(env_sat['tem_saturacao'])
+        self.assertTrue(any(c['saturado'] for c in env_sat['colunas']))
+        self.assertTrue(any(c['silencio'] for c in env_sat['colunas']))
+
+    def test_calcular_envelope_wav_rejeita_invalido(self):
+        vazio = self.wav.with_name('vazio.wav')
+        with wave.open(str(vazio), 'wb') as wf:
+            wf.setparams((1, 2, 24000, 0, 'NONE', 'not compressed'))
+        with self.assertRaises(ValueError):
+            calcular_envelope_wav(vazio)
+
+        oito_bits = self.wav.with_name('oito.wav')
+        with wave.open(str(oito_bits), 'wb') as wf:
+            wf.setparams((1, 1, 8000, 0, 'NONE', 'not compressed'))
+            wf.writeframes(b'\x80' * 10)
+        with self.assertRaises(ValueError):
+            calcular_envelope_wav(oito_bits)
 
 
 if __name__ == '__main__': unittest.main()

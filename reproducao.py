@@ -1,5 +1,6 @@
 """Player WAV PCM em subprocesso, com transporte JSON e saída sounddevice opcional."""
 import argparse
+import array
 import json
 import math
 from pathlib import Path
@@ -8,6 +9,94 @@ import subprocess
 import sys
 import threading
 import wave
+
+
+def calcular_envelope_wav(caminho, colunas=240):
+    """Calcula o envelope de amplitude de um arquivo WAV PCM 16 bits.
+
+    Lê o arquivo em blocos sem carregar todo o áudio na memória.
+    Retorna colunas normalizadas [0.0..1.0] com pico, rms e alertas.
+    """
+    caminho = Path(caminho)
+    with wave.open(str(caminho), 'rb') as audio:
+        if audio.getsampwidth() != 2 or audio.getcomptype() != 'NONE':
+            raise ValueError('O cálculo de envelope requer WAV PCM de 16 bits.')
+        taxa = audio.getframerate()
+        canais = audio.getnchannels()
+        total_frames = audio.getnframes()
+        if total_frames <= 0 or taxa <= 0:
+            raise ValueError('Áudio vazio.')
+
+        colunas = max(10, min(2000, int(colunas)))
+        duracao = total_frames / taxa
+
+        try:
+            import numpy as np
+            usar_numpy = True
+        except ImportError:
+            usar_numpy = False
+
+        envelope = []
+        pico_global = 0.0
+        frames_lidos = 0
+
+        for i in range(colunas):
+            inicio_frame = int(i * total_frames / colunas)
+            fim_frame = int((i + 1) * total_frames / colunas)
+            qtd_frames = max(1, fim_frame - inicio_frame)
+
+            if frames_lidos != inicio_frame:
+                audio.setpos(inicio_frame)
+                frames_lidos = inicio_frame
+
+            dados = audio.readframes(qtd_frames)
+            frames_lidos += len(dados) // (canais * 2)
+
+            if not dados:
+                envelope.append({'pico': 0.0, 'rms': 0.0, 'saturado': False, 'silencio': True})
+                continue
+
+            if usar_numpy:
+                amostras = np.frombuffer(dados, dtype=np.int16)
+                if amostras.size == 0:
+                    envelope.append({'pico': 0.0, 'rms': 0.0, 'saturado': False, 'silencio': True})
+                    continue
+                pico_int = int(np.abs(amostras).max())
+                soma_quad = float(np.sum(amostras.astype(np.float64) ** 2))
+                rms_val = math.sqrt(soma_quad / amostras.size) / 32768.0
+            else:
+                arr = array.array('h')
+                arr.frombytes(dados)
+                if not arr:
+                    envelope.append({'pico': 0.0, 'rms': 0.0, 'saturado': False, 'silencio': True})
+                    continue
+                pico_int = max(abs(x) for x in arr)
+                soma_quad = sum(x * x for x in arr)
+                rms_val = math.sqrt(soma_quad / len(arr)) / 32768.0
+
+            pico_val = min(1.0, pico_int / 32768.0)
+            rms_val = min(1.0, rms_val)
+            if pico_val > pico_global:
+                pico_global = pico_val
+
+            saturado = pico_int >= 32760
+            silencio = pico_val < 0.005
+            envelope.append({
+                'pico': round(pico_val, 4),
+                'rms': round(rms_val, 4),
+                'saturado': saturado,
+                'silencio': silencio,
+            })
+
+        return {
+            'colunas': envelope,
+            'duracao_s': duracao,
+            'canais': canais,
+            'taxa_hz': taxa,
+            'total_frames': total_frames,
+            'pico_max': round(pico_global, 4),
+            'tem_saturacao': any(c['saturado'] for c in envelope),
+        }
 
 
 class TransportePCM:

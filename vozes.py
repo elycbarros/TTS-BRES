@@ -9,6 +9,30 @@ VOZES_PADRAO: dict[str, str] = {
     "es": "Alma María",
 }
 
+VOZES_EMBUTIDAS: dict[str, tuple[str, ...]] = {
+    "pt": (
+        "Luis Moray",
+        "Ana Florence",
+        "Sofia Hellen",
+        "Marcos Rudaski",
+        "Tammie Ema",
+        "Gilberto Mathias",
+    ),
+    "es": (
+        "Alma María",
+        "Xavier Hayasaka",
+        "Ferran Simen",
+        "Claribel Dervla",
+        "Daisy Studious",
+        "Gracie Wise",
+    ),
+}
+
+TEXTOS_PREVIA: dict[str, str] = {
+    "pt": "Olá! Esta é uma demonstração da minha voz gerada pelo TTSBR.",
+    "es": "¡Hola! Esta es una demostración de mi voz generada por TTSBR.",
+}
+
 # Mapeamento de apelidos de personagens para nomes oficiais de locutores do XTTS v2
 PERSONAGENS_MAP: dict[str, str] = {
     "narrador": "Luis Moray",
@@ -144,3 +168,61 @@ def resolver_locutor(nome_ou_tag: str | None, idioma_trecho: str, locutor_fallba
         return VOZES_PADRAO.get(idioma_trecho, locutor_fallback)
     alvo = nome_ou_tag.strip().lower()
     return PERSONAGENS_MAP.get(alvo, nome_ou_tag.strip())
+
+
+def listar_vozes_embutidas(idioma: str | None = None) -> list[str]:
+    """Retorna a lista de nomes de locutores embutidos, opcionalmente filtrados por idioma."""
+    if idioma in VOZES_EMBUTIDAS:
+        return list(VOZES_EMBUTIDAS[idioma])
+    resultado = []
+    for nomes in VOZES_EMBUTIDAS.values():
+        for nome in nomes:
+            if nome not in resultado:
+                resultado.append(nome)
+    return resultado
+
+
+def obter_catalogo_vozes(raiz_biblioteca: Path | None = None, idioma: str | None = None) -> list[dict]:
+    """Retorna o catálogo unificado de vozes (locutores embutidos + perfis da Biblioteca de Vozes)."""
+    catalogo: list[dict] = []
+
+    # 1. Locutores embutidos
+    idiomas = [idioma] if idioma in VOZES_EMBUTIDAS else ["pt", "es"]
+    for lang in idiomas:
+        for loc in VOZES_EMBUTIDAS.get(lang, ()):
+            catalogo.append({
+                "origem": "embutida",
+                "id": loc,
+                "nome": loc,
+                "idioma": lang,
+                "estilo": "padrão",
+                "descricao": f"Voz nativa ({lang.upper()})",
+                "referencia": None,
+            })
+
+    # 2. Perfis da biblioteca privada de vozes
+    try:
+        from biblioteca_vozes import BibliotecaVozes
+        bib = BibliotecaVozes(raiz=raiz_biblioteca) if raiz_biblioteca else BibliotecaVozes()
+        for perfil in bib.listar():
+            doc = perfil.get("documento", perfil)
+            dados = doc.get("dados", doc)
+            identidade = doc.get("id") or dados.get("id")
+            lang_perfil = dados.get("idioma", "pt")
+            if idioma and idioma != "auto" and lang_perfil != idioma:
+                continue
+            nome = dados.get("nome", identidade)
+            estilo = dados.get("estilo") or "personalizado"
+            catalogo.append({
+                "origem": "biblioteca",
+                "id": identidade,
+                "nome": nome,
+                "idioma": lang_perfil,
+                "estilo": estilo,
+                "descricao": f"Biblioteca ({lang_perfil.upper()} · {estilo})",
+                "referencia": str(bib.resolver(identidade)) if identidade else None,
+            })
+    except Exception:
+        pass
+
+    return catalogo

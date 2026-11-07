@@ -216,5 +216,45 @@ class TestEventosPipeline(unittest.TestCase):
                     motor.sintetizar({'input': ''})
 
 
+class TestCatalogoVozesEWaveform(unittest.TestCase):
+    def test_listar_vozes_embutidas_e_catalogo_unificado(self):
+        from vozes import listar_vozes_embutidas, obter_catalogo_vozes
+        vozes_pt = listar_vozes_embutidas('pt')
+        vozes_es = listar_vozes_embutidas('es')
+        vozes_todas = listar_vozes_embutidas()
+        self.assertIn('Luis Moray', vozes_pt)
+        self.assertIn('Alma María', vozes_es)
+        self.assertEqual(len(vozes_todas), len(vozes_pt) + len(vozes_es))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            from biblioteca_vozes import BibliotecaVozes
+            bib_dir = Path(tmp) / 'vozes'
+            bib = BibliotecaVozes(bib_dir)
+
+            cat = obter_catalogo_vozes(raiz_biblioteca=bib_dir)
+            self.assertTrue(all(item['origem'] == 'embutida' for item in cat))
+            self.assertTrue(any(item['nome'] == 'Luis Moray' and item['idioma'] == 'pt' for item in cat))
+            self.assertTrue(any(item['nome'] == 'Alma María' and item['idioma'] == 'es' for item in cat))
+
+            wav_ref = Path(tmp) / 'ref.wav'
+            import wave
+            with wave.open(str(wav_ref), 'wb') as wf:
+                wf.setparams((1, 2, 24000, 2400, 'NONE', 'not compressed'))
+                wf.writeframes(b'\x00\x00' * 2400)
+            bib.importar(
+                origem=wav_ref,
+                nome='Narrador Oficial',
+                idioma='pt',
+                estilo='documentário',
+                autorizacao=True,
+            )
+            cat_com_bib = obter_catalogo_vozes(raiz_biblioteca=bib_dir)
+            bib_itens = [item for item in cat_com_bib if item['origem'] == 'biblioteca']
+            self.assertEqual(len(bib_itens), 1)
+            self.assertEqual(bib_itens[0]['nome'], 'Narrador Oficial')
+            self.assertEqual(bib_itens[0]['idioma'], 'pt')
+            self.assertEqual(bib_itens[0]['estilo'], 'documentário')
+
+
 if __name__ == '__main__':
     unittest.main()
