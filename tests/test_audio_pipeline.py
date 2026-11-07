@@ -128,6 +128,28 @@ class TestOperacoesAudioEPausas(unittest.TestCase):
         self.assertFalse(itens[0][0].startswith("[Narrador]"))
         self.assertTrue(itens[0][0].startswith("O pesquisador"))
 
+    def test_ffmetadata_escape_e_geracao(self):
+        from audio_persistente import escapar_ffmetadata, gerar_ffmetadata
+        self.assertEqual(escapar_ffmetadata("a=b;c#d\\e\nf"), "a\\=b\\;c\\#d\\\\e\\\nf")
+        meta = gerar_ffmetadata(
+            titulo="Livro = Teste",
+            autor="Autor; Narrador",
+            capitulos=[
+                {"titulo": "Capítulo 1", "inicio_s": 0.0, "fim_s": 10.5},
+                {"titulo": "Capítulo 2", "inicio_s": 10.5, "fim_s": 25.0},
+            ]
+        )
+        self.assertTrue(meta.startswith(";FFMETADATA1\n"))
+        self.assertIn("title=Livro \\= Teste", meta)
+        self.assertIn("artist=Autor\\; Narrador", meta)
+        self.assertIn("[CHAPTER]", meta)
+        self.assertIn("START=0", meta)
+        self.assertIn("END=10500", meta)
+        self.assertIn("title=Capítulo 1", meta)
+        self.assertIn("START=10500", meta)
+        self.assertIn("END=25000", meta)
+        self.assertIn("title=Capítulo 2", meta)
+
 
 if __name__ == "__main__":
     unittest.main()

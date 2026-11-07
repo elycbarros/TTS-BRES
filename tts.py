@@ -224,6 +224,8 @@ def _main(argv=None, on_event=None, should_stop=None, modelo_precarregado=None, 
         "--por-capitulo", action="store_true",
         help="exporta também um arquivo por capítulo demarcado por '#' ou '##' (ou por bloco quando não houver cabeçalhos)",
     )
+    ap.add_argument("--m4b", action="store_true", help="exporta audiolivro em formato M4B com capítulos embutidos")
+    ap.add_argument("--capa", default=None, help="imagem (JPG ou PNG) de capa para audiolivro M4B ou MP3")
     ap.add_argument("--titulo", default=None, help="título para os metadados de áudio (title/album)")
     ap.add_argument("--autor", default=None, help="autor/narrador para os metadados de áudio (artist)")
     ap.add_argument(
@@ -266,13 +268,15 @@ def _main(argv=None, on_event=None, should_stop=None, modelo_precarregado=None, 
             ap.error("--refazer-segmentos deve conter IDs inteiros positivos separados por vírgula (ex.: 2 ou 1,4).")
         refazer_ids = {int(p) for p in partes_ids}
     formatos = list(dict.fromkeys(f.strip().lower() for f in args.formatos.split(",")))
-    if not formatos or any(f not in ("mp3", "wav", "srt", "vtt") for f in formatos):
-        ap.error("--formatos aceita mp3, wav, srt, vtt ou combinações separadas por vírgula.")
-    for flag, fmt in ((args.wav, "wav"), (args.srt, "srt"), (args.vtt, "vtt")):
+    if not formatos or any(f not in ("mp3", "wav", "srt", "vtt", "m4b") for f in formatos):
+        ap.error("--formatos aceita mp3, wav, srt, vtt, m4b ou combinações separadas por vírgula.")
+    for flag, fmt in ((args.wav, "wav"), (args.srt, "srt"), (args.vtt, "vtt"), (args.m4b, "m4b")):
         if flag and fmt not in formatos:
             formatos.append(fmt)
     if not args.saida.strip() or Path(args.saida).is_dir():
         ap.error("--saida deve indicar um nome base de arquivo.")
+    if args.capa and not Path(args.capa).is_file():
+        ap.error(f"Arquivo de capa não encontrado: {args.capa}")
     if args.locutor is not None:
         args.locutor = args.locutor.strip()
         if not args.locutor:
@@ -604,10 +608,23 @@ def _main(argv=None, on_event=None, should_stop=None, modelo_precarregado=None, 
     titulo_obra = (args.titulo or "").strip() or base.name
     autor_obra = (args.autor or "").strip() or locutor_global
     metadados_principais = {"title": titulo_obra, "artist": autor_obra, "album": titulo_obra}
+    capitulos_obra = []
+    for idx_b, t_bloco in enumerate(titulos_blocos, 1):
+        segs_b = [s for s in manifesto["segmentos"] if s.get("bloco") == idx_b]
+        if segs_b:
+            capitulos_obra.append({
+                "id": idx_b,
+                "titulo": t_bloco or f"Capítulo {idx_b}",
+                "inicio_s": segs_b[0]["inicio_s"],
+                "fim_s": segs_b[-1]["fim_s"],
+            })
+    if capitulos_obra:
+        manifesto["capitulos_embutidos"] = capitulos_obra
     metricas_finais = exportar(
         eventos, base, formatos, AudioSegment.converter,
         segmentos=manifesto["segmentos"], lufs=args.lufs, taxa_amostragem=args.taxa_amostragem,
         trilha=args.trilha, volume_trilha=args.volume_trilha, metadados=metadados_principais,
+        capitulos=capitulos_obra, capa=args.capa,
     )
     if metricas_finais:
         manifesto["metricas_finais"] = metricas_finais
@@ -644,6 +661,7 @@ def _main(argv=None, on_event=None, should_stop=None, modelo_precarregado=None, 
                 ev_cap, base_cap, formatos, AudioSegment.converter,
                 segmentos=segs_cap, lufs=args.lufs, taxa_amostragem=args.taxa_amostragem,
                 trilha=args.trilha, volume_trilha=args.volume_trilha, metadados=meta_cap,
+                capa=args.capa,
             )
             arqs_cap = [str((base_cap.parent / f"{base_cap.name}.{fmt}").resolve()) for fmt in formatos]
             arquivos_gerados.extend(arqs_cap)

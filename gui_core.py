@@ -36,7 +36,7 @@ def argumentos_sintese(pedido):
     for nome in ('preset', 'locutor', 'voz', 'vozes_personagens', 'vozes_tons', 'glossario',
                  'revisao_segmentos', 'cache_segmentos',
                  'trilha', 'volume_trilha', 'refazer_segmentos',
-                 'titulo', 'autor',
+                 'titulo', 'autor', 'capa',
                  'velocidade', 'volume_alvo', 'lufs', 'taxa_amostragem', 'max_tentativas', 'dispositivo',
                  'pausa_frase', 'pausa_reticencias', 'pausa_ponto_virgula', 'pausa_virgula',
                  'pausa_paragrafo', 'pausa_bloco'):

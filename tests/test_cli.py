@@ -260,6 +260,30 @@ class TestCLI(unittest.TestCase):
             srt_cap2 = (pasta / 'audiolivro.cap02.srt').read_text(encoding='utf-8')
             self.assertIn('00:00:00,200 -->', srt_cap2)
 
+    def test_exportacao_audiolivro_m4b_com_capitulos(self):
+        api = types.ModuleType('TTS.api')
+        api.TTS = MagicMock()
+        modelo = api.TTS.return_value.to.return_value
+        modelo.tts.return_value = np.sin(np.arange(12000) * .1) * .2
+        with tempfile.TemporaryDirectory() as tmp:
+            pasta = Path(tmp)
+            entrada = pasta / 'obra.txt'
+            entrada.write_text('# Prólogo\n\nTexto do prólogo.\n\n# Desenvolvimento\n\nTexto do desenvolvimento.', encoding='utf-8')
+            base = pasta / 'audiolivro_m4b'
+            with patch.dict(sys.modules, {'TTS.api': api}), \
+                    patch.object(tts, 'escolher_dispositivo', return_value='cpu'), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                tts.main([str(entrada), '--saida', str(base), '--m4b', '--formatos', 'wav,m4b',
+                          '--titulo', 'Obra M4B', '--autor', 'Autor M4B'])
+            manifesto = json.loads((pasta / 'audiolivro_m4b.blocos.json').read_text())
+            self.assertIn('capitulos_embutidos', manifesto)
+            self.assertEqual(len(manifesto['capitulos_embutidos']), 2)
+            self.assertEqual(manifesto['capitulos_embutidos'][0]['titulo'], 'Prólogo')
+            self.assertEqual(manifesto['capitulos_embutidos'][1]['titulo'], 'Desenvolvimento')
+            self.assertTrue((pasta / 'audiolivro_m4b.m4b').is_file())
+            self.assertGreater((pasta / 'audiolivro_m4b.m4b').stat().st_size, 100)
+            self.assertIn('m4b', manifesto.get('metricas_finais', {}))
+
     def test_corpus_publico_12_casos_por_idioma_sem_tags_pronunciadas(self):
         corpus = Path(__file__).resolve().parent.parent / 'avaliacao' / 'corpus_pt_es.txt'
         eventos = []

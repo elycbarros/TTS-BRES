@@ -76,6 +76,7 @@ if TKINTER_DISPONIVEL:
                 "volume_trilha": "-18",
                 "titulo": "",
                 "autor": "",
+                "capa": "",
                 "formatos": "mp3,wav",
                 "velocidade": "1.1",
                 "volume_alvo": "-20",
@@ -254,7 +255,7 @@ if TKINTER_DISPONIVEL:
                 livre=True,
             )
             self._campo(lateral, "Velocidade · 1.0 é a original", "velocidade")
-            self._campo(lateral, "Formatos", "formatos", ("mp3,wav", "mp3,wav,srt", "mp3,srt", "wav", "mp3", "srt", "vtt"), livre=True)
+            self._campo(lateral, "Formatos", "formatos", ("mp3,wav", "m4b", "mp3,m4b", "mp3,wav,m4b", "mp3,wav,srt", "mp3,srt", "wav", "mp3", "srt", "vtt"), livre=True)
             self._campo(lateral, "Nome base da saída", "saida")
 
             b = ttk.Button(lateral, text="Escolher saída…", command=self._escolher_saida)
@@ -388,6 +389,8 @@ if TKINTER_DISPONIVEL:
             self._campo(frame, "Volume da trilha · dB (ex.: -18)", "volume_trilha")
             self._campo(frame, "Título da obra (metadado opcional)", "titulo")
             self._campo(frame, "Autor / narrador (metadado opcional)", "autor")
+            self._campo(frame, "Capa do audiolivro · JPG ou PNG (opcional)", "capa")
+            ttk.Button(frame, text="Selecionar capa…", command=lambda: self._arquivo("capa", [("Imagens", "*.jpg *.jpeg *.png"), ("Todos", "*")])).pack(fill="x", pady=(0, 12))
             self._campo(frame, "Glossário adicional · TXT ou JSON", "glossario")
             ttk.Button(frame, text="Selecionar glossário…", command=lambda: self._arquivo("glossario", [("Glossário", "*.txt *.json")])).pack(fill="x", pady=(0, 12))
 
@@ -725,7 +728,7 @@ if TKINTER_DISPONIVEL:
                 raise ValueError("Informe o nome base da saída.")
             cfg["saida"] = str(Path(cfg["saida"]).expanduser().absolute())
             cfg["locutor"] = "" if cfg["locutor"] == "Automática" else cfg["locutor"]
-            for k in ("voz", "glossario", "trilha"):
+            for k in ("voz", "glossario", "trilha", "capa"):
                 cfg[k] = str(Path(cfg[k]).expanduser().absolute()) if cfg[k].strip() else ""
             return cfg
 

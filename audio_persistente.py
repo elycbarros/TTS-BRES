@@ -148,6 +148,42 @@ def formatar_tempo_legenda(segundos, separador=','):
     return f'{horas:02d}:{minutos:02d}:{segs:02d}{separador}{ms:03d}'
 
 
+def escapar_ffmetadata(texto):
+    """Escapa caracteres especiais para o formato FFMETADATA1 do FFmpeg."""
+    if not texto:
+        return ''
+    t = str(texto).replace('\\', '\\\\')
+    for c in ('=', ';', '#'):
+        t = t.replace(c, f'\\{c}')
+    return t.replace('\r\n', '\n').replace('\r', '\n').replace('\n', '\\\n')
+
+
+def gerar_ffmetadata(titulo=None, autor=None, capitulos=()):
+    """Gera o conteúdo de metadados e capítulos no formato FFMETADATA1 do FFmpeg."""
+    linhas = [';FFMETADATA1']
+    if titulo and str(titulo).strip():
+        t = escapar_ffmetadata(str(titulo).strip())
+        linhas.append(f'title={t}')
+        linhas.append(f'album={t}')
+    if autor and str(autor).strip():
+        a = escapar_ffmetadata(str(autor).strip())
+        linhas.append(f'artist={a}')
+        linhas.append(f'album_artist={a}')
+        linhas.append(f'composer={a}')
+    for idx, cap in enumerate(capitulos or (), 1):
+        ini_ms = max(0, int(round(float(cap.get('inicio_s', 0.0)) * 1000)))
+        fim_ms = max(ini_ms, int(round(float(cap.get('fim_s', cap.get('inicio_s', 0.0))) * 1000)))
+        if fim_ms <= ini_ms:
+            fim_ms = ini_ms + 100
+        nome_cap = cap.get('titulo') or f'Capítulo {idx}'
+        linhas.append('\n[CHAPTER]')
+        linhas.append('TIMEBASE=1/1000')
+        linhas.append(f'START={ini_ms}')
+        linhas.append(f'END={fim_ms}')
+        linhas.append(f'title={escapar_ffmetadata(nome_cap)}')
+    return '\n'.join(linhas) + '\n'
+
+
 def gerar_legenda(segmentos, formato='srt'):
     formato = formato.lower()
     if formato not in ('srt', 'vtt'):
@@ -216,10 +252,10 @@ def medir_loudness_final(caminho, ffmpeg):
 
 
 def exportar(eventos, base, formatos, ffmpeg, segmentos=(), lufs=None, taxa_amostragem=None,
-             trilha=None, volume_trilha=-18.0, metadados=None):
+             trilha=None, volume_trilha=-18.0, metadados=None, capitulos=(), capa=None):
     """Monta WAV em disco e substitui cada saída somente após sua conclusão."""
     base = Path(base)
-    precisa_audio = any(f in ('wav', 'mp3') for f in formatos)
+    precisa_audio = any(f in ('wav', 'mp3', 'm4b') for f in formatos)
     sr_alvo = int(taxa_amostragem) if taxa_amostragem is not None else SR
     opcoes_audio = []
     opcoes_meta = []
@@ -244,6 +280,8 @@ def exportar(eventos, base, formatos, ffmpeg, segmentos=(), lufs=None, taxa_amos
         if sr_alvo != SR:
             opcoes_audio.extend(['-ar', str(sr_alvo)])
 
+    capa_valida = Path(capa).resolve() if capa and Path(capa).is_file() else None
+
     metricas_finais = {}
     with tempfile.TemporaryDirectory(dir=base.parent, prefix='.ttsbr-montagem-') as pasta:
         wav = Path(pasta) / 'montagem.wav'
@@ -264,16 +302,60 @@ def exportar(eventos, base, formatos, ffmpeg, segmentos=(), lufs=None, taxa_amos
                 )
                 if processo.returncode:
                     raise RuntimeError(f'Falha na exportação WAV: {processo.stderr.strip()}')
-            else:
+            elif formato == 'm4b':
+                ffmeta_path = Path(pasta) / 'metadata.txt'
+                meta_dict = dict(metadados or {})
+                titulo = meta_dict.get('title') or base.name
+                autor = meta_dict.get('artist') or meta_dict.get('author')
+                ffmeta_path.write_text(gerar_ffmetadata(titulo=titulo, autor=autor, capitulos=capitulos), encoding='utf-8')
+
+                cmd_m4b = [str(ffmpeg), '-nostdin', '-y', '-hide_banner', '-loglevel', 'error',
+                           '-i', str(wav), '-f', 'ffmetadata', '-i', str(ffmeta_path)]
+                idx_capa = None
+                if capa_valida:
+                    cmd_m4b.extend(['-i', str(capa_valida)])
+                    idx_capa = 2
+
+                if trilha:
+                    cmd_m4b.extend(opcoes_audio)
+                else:
+                    cmd_m4b.extend(['-map', '0:a'])
+                    if lufs is not None:
+                        cmd_m4b.extend(['-af', f'loudnorm=I={float(lufs)}:TP=-1.5:LRA=11'])
+                    if sr_alvo != SR:
+                        cmd_m4b.extend(['-ar', str(sr_alvo)])
+
+                cmd_m4b.extend(['-map_metadata', '1'])
+                if idx_capa is not None:
+                    cmd_m4b.extend(['-map', f'{idx_capa}:v', '-c:v', 'copy', '-disposition:v:0', 'attached_pic'])
+
+                cmd_m4b.extend(['-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', str(temporario)])
                 processo = subprocess.run(
-                    [str(ffmpeg), '-nostdin', '-y', '-hide_banner', '-loglevel', 'error',
-                     '-i', str(wav), *opcoes_audio, *opcoes_meta, '-b:a', '192k', str(temporario)],
+                    cmd_m4b,
+                    stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True,
+                )
+                if processo.returncode:
+                    raise RuntimeError(f'Falha na exportação M4B: {processo.stderr.strip()}')
+            elif formato == 'mp3':
+                cmd_mp3 = [str(ffmpeg), '-nostdin', '-y', '-hide_banner', '-loglevel', 'error', '-i', str(wav)]
+                if capa_valida:
+                    cmd_mp3.extend(['-i', str(capa_valida)])
+                cmd_mp3.extend([*opcoes_audio, *opcoes_meta])
+                if capa_valida:
+                    cmd_mp3.extend(['-map', '0:a', '-map', '1:v', '-c:v', 'copy',
+                                    '-id3v2_version', '3', '-metadata:s:v', 'title="Album cover"',
+                                    '-metadata:s:v', 'comment="Cover (front)"'])
+                cmd_mp3.extend(['-b:a', '192k', str(temporario)])
+                processo = subprocess.run(
+                    cmd_mp3,
                     stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True,
                 )
                 if processo.returncode:
                     raise RuntimeError(f'Falha na exportação MP3: {processo.stderr.strip()}')
+            else:
+                raise ValueError(f'Formato de exportação não suportado: {formato}')
             os.replace(temporario, destino)
             print(f'Gerado: {destino}')
-            if formato in ('wav', 'mp3'):
+            if formato in ('wav', 'mp3', 'm4b'):
                 metricas_finais[formato] = medir_loudness_final(destino, ffmpeg)
     return metricas_finais
