@@ -37,13 +37,13 @@ Projeto pessoal de IA generativa aplicada, em fase de estabilização e sem decl
 | Entender as licenças do código e do modelo | [Licença](#licenca) e [componentes de terceiros](THIRD_PARTY_NOTICES.md) |
 | Conferir a rodada de estabilização e pendências | [Estabilização](docs/ESTABILIZACAO.md) |
 | Consultar as alterações do projeto | [Histórico de alterações](CHANGELOG.md) |
-| Ver sugestões e próximas melhorias planejadas | [Roadmap do projeto](docs/ROADMAP.md) |
-| Consultar o plano do preview e da próxima versão final | [0.9.0 Preview → 1.1.0](docs/ROADMAP_0.9.0.md) |
+| Ver sugestões e próximas melhorias planejadas | [Roadmap do projeto](docs/ROADMAP.md) e [Plano da v1.2.0](docs/ROADMAP_1.2.0.md) |
+| Consultar o plano concluído do ciclo 0.9.0 → 1.1.0 | [0.9.0 Preview → 1.1.0](docs/ROADMAP_0.9.0.md) |
 | Diagnosticar o ambiente e consultar os contratos do preview | [Base E0 do preview](docs/PREVIEW_0.9.0.md) |
 | Cadastrar, ouvir e reutilizar referências pessoais | [Biblioteca privada de vozes — E1](docs/BIBLIOTECA_VOZES.md) |
 | Salvar projetos, corrigir falas e comparar tomadas | [Projetos e revisão — E2](docs/PROJETOS_REVISAO.md) |
 | Enfileirar projetos e recuperar execuções | [Fila persistente e supervisão — E3](docs/FILA_TAREFAS.md) |
-| Acompanhar o contrato de motores e a avaliação experimental | [Motores — E4 em andamento](docs/MOTORES_E4.md) |
+| Acompanhar o contrato de motores e a avaliação experimental | [Motores — E4 concluída](docs/MOTORES_E4.md) |
 
 <details>
 <summary><strong>Explorar a documentação</strong></summary>

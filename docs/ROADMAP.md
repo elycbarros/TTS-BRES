@@ -1,6 +1,6 @@
 # 🗺️ Roadmap de Próximas Melhorias — TTSBR
 
-> **Plano da próxima entrega:** [0.9.0 Preview → 1.1.0](ROADMAP_0.9.0.md). O plano detalha prioridades, arquitetura, testes e critérios de promoção. As ideias abaixo permanecem como backlog; não representam compromisso de inclusão no preview.
+> **Plano da próxima entrega:** [Roadmap Técnico v1.2.0](ROADMAP_1.2.0.md) (ciclo anterior concluído: [0.9.0 Preview → 1.1.0](ROADMAP_0.9.0.md)). O plano detalha as etapas **M1 a M5**, módulos afetados, testes e critérios de lançamento da `1.2.0`.
 
 Este documento consolida as sugestões e prioridades planejadas para as próximas iterações do TTSBR, organizadas por impacto e área do pipeline.
 
