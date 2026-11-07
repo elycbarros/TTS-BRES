@@ -234,6 +234,34 @@ class TestGlossarioCustomizado(unittest.TestCase):
                 res, _ = normalizar_para_fala(entrada, idioma="es")
                 self.assertIn(esperado, res)
 
+    def test_pronuncia_nome_ely(self):
+        pt, _ = normalizar_para_fala("Olá Ely, bem-vindo! Meu nome é Ely.", idioma="pt")
+        self.assertIn("Elí", pt)
+        self.assertNotIn("Ely", pt)
+
+    def test_soletrar_siglas_e_letras_pt(self):
+        # Sigla TTSBR
+        res, _ = normalizar_para_fala("Bem-vindo ao TTSBR.", idioma="pt")
+        self.assertIn("tê-tê-ésse-bê-érre", res)
+
+        # Siglas consonantais e alfabeto solto
+        res2, _ = normalizar_para_fala("Testamos as opções A, B e C com as siglas SP e CNPJ.", idioma="pt")
+        self.assertIn("opções á", res2)
+        self.assertIn("bê", res2)
+        self.assertIn("cê", res2)
+        self.assertIn("ésse-pê", res2)
+        self.assertIn("cê-êne-pê-jóta", res2)
+
+        # Teste A/B e intervalo de A a Z
+        res3, _ = normalizar_para_fala("Fizemos um teste A/B cobrindo de A a Z.", idioma="pt")
+        self.assertIn("á barra bê", res3)
+        self.assertIn("á a zê", res3)
+
+        # Letra entre aspas
+        res4, _ = normalizar_para_fala('Selecione a letra "A" ou "B".', idioma="pt")
+        self.assertIn('"á"', res4)
+        self.assertIn('"bê"', res4)
+
 
 if __name__ == "__main__":
     unittest.main()

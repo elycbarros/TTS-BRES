@@ -23,6 +23,8 @@ from lexico import (
     ABREVIACOES_PT,
     DENOMINADORES_ES,
     DENOMINADORES_PTBR,
+    LETRAS_ALFABETO_ES,
+    LETRAS_ALFABETO_PTBR,
     ORDINAIS_ES,
     ORDINAIS_PTBR,
     POTENCIAS_ES,
@@ -551,6 +553,93 @@ def normalizar_termos_tecnicos(
     return texto
 
 
+def soletrar_siglas_e_letras(texto: str, idioma: str = "pt") -> str:
+    """Expande referências explícitas a letras do alfabeto e siglas consonantais não cadastradas."""
+    letras_map = LETRAS_ALFABETO_ES if idioma == "es" else LETRAS_ALFABETO_PTBR
+    palavra_barra = "barra"
+
+    # 1. Padrões de pares com barra como A/B, X/Y (apenas letras individuais isoladas)
+    def _sub_barra(m: re.Match) -> str:
+        l1 = m.group(1).upper()
+        l2 = m.group(2).upper()
+        p1 = letras_map.get(l1, l1)
+        p2 = letras_map.get(l2, l2)
+        return f"{p1} {palavra_barra} {p2}"
+
+    texto = re.sub(r"(?<![A-Za-z0-9])([A-Za-z])/([A-Za-z])(?![A-Za-z0-9])", _sub_barra, texto)
+
+    # 2. Letras isoladas entre aspas: "A", 'B', «C»
+    def _sub_aspas(m: re.Match) -> str:
+        l = m.group(2).upper()
+        return f"{m.group(1)}{letras_map.get(l, l)}{m.group(3)}"
+
+    texto = re.sub(r'([“"\'«])([A-Za-z])([”"\'»])', _sub_aspas, texto)
+
+    # 3. Intervalos e alternâncias explícitas de letras: "de A a Z", "de A até B", "A ou B", "A e B"
+    if idioma == "pt":
+        def _sub_intervalo(m: re.Match) -> str:
+            l1 = m.group(1).upper()
+            prep = m.group(2)
+            l2 = m.group(3).upper()
+            return f"{letras_map.get(l1, l1)} {prep} {letras_map.get(l2, l2)}"
+
+        texto = re.sub(r"\b([A-Za-z])\s+(a|até|ou|e)\s+([A-Za-z])\b", _sub_intervalo, texto)
+    else:
+        def _sub_intervalo_es(m: re.Match) -> str:
+            l1 = m.group(1).upper()
+            prep = m.group(2)
+            l2 = m.group(3).upper()
+            return f"{letras_map.get(l1, l1)} {prep} {letras_map.get(l2, l2)}"
+
+        texto = re.sub(r"\b([A-Za-z])\s+(a|hasta|o)\s+([A-Za-z])\b", _sub_intervalo_es, texto)
+
+    # 4. Letras isoladas acompanhadas de qualificador contextual (letra A, vitamina C, ponto B, tipo D...)
+    if idioma == "pt":
+        padrao_prefixo = (
+            r"\b(letra|letras|vitamina|vitaminas|tipo|tipos|ponto|pontos|faixa|faixas|"
+            r"classe|classes|grupo|grupos|categoria|categorias|modo|modos|grau|graus|"
+            r"nível|níveis|caso|casos|opção|opções|item|itens|anexo|anexos|apêndice|apêndices|"
+            r"eixo|eixos|plano|planos|modelo|modelos|teste|testes|fase|fases|bloco|blocos|canal|canais)\s+([A-Za-z])\b"
+        )
+    else:
+        padrao_prefixo = (
+            r"\b(letra|letras|vitamina|vitaminas|tipo|tipos|punto|puntos|faja|fajas|"
+            r"clase|clases|grupo|grupos|categoría|categorías|modo|modos|grado|grados|"
+            r"nivel|niveles|caso|casos|opción|opciones|ítem|ítems|anexo|anexos|apéndice|apéndices|"
+            r"eje|ejes|plan|planes|modelo|modelos|test|tests|fase|fases|bloque|bloques|canal|canales)\s+([A-Za-z])\b"
+        )
+
+    def _sub_letra(m: re.Match) -> str:
+        prefixo = m.group(1)
+        letra = m.group(2).upper()
+        return f"{prefixo} {letras_map.get(letra, letra)}"
+
+    texto = re.sub(padrao_prefixo, _sub_letra, texto, flags=re.IGNORECASE)
+
+    # 5. Siglas puramente consonantais de 2 a 6 letras não cadastradas (ex.: SP, RJ, DF, CPFL, CNPJ...)
+    def _soletrar_consoantes(m: re.Match) -> str:
+        sigla = m.group(0)
+        return "-".join(letras_map.get(c, c) for c in sigla)
+
+    texto = re.sub(r"\b[BCDFGHJKLMNPQRSTVWXYZ]{2,6}\b", _soletrar_consoantes, texto)
+
+    # 6. Consoantes maiúsculas individuais isoladas (B, C, D, F, G, H, J, K, L, M, N, P, Q, R, S, T, V, W, X, Y, Z)
+    if idioma == "pt":
+        def _sub_consoante_isolada(m: re.Match) -> str:
+            c = m.group(0)
+            return letras_map.get(c, c)
+
+        texto = re.sub(r"\b[BCDFGHJKLMNPQRSTVWXYZ]\b", _sub_consoante_isolada, texto)
+    else:
+        def _sub_consoante_isolada_es(m: re.Match) -> str:
+            c = m.group(0)
+            return letras_map.get(c, c)
+
+        texto = re.sub(r"\b[BCDFGHJKLMNPQRSTVWXZ]\b", _sub_consoante_isolada_es, texto)
+
+    return texto
+
+
 def carregar_glossario(
     caminho: str | Path | None,
     texto_path: str | Path | None = None,
@@ -633,15 +722,17 @@ def normalizar_para_fala(
 
     def _normalizar_trecho(trecho: str) -> str:
         t = expandir_abreviacoes(trecho, idioma=lang)
-        t = normalizar_termos_tecnicos(t, idioma=lang, glossario_extra=glossario_extra)
         if lang == "pt":
             t = normalizar_numeros_e_simbolos_pt(t)
+        elif lang == "es":
+            t = normalizar_numeros_e_simbolos_es(t)
+        t = soletrar_siglas_e_letras(t, idioma=lang)
+        t = normalizar_termos_tecnicos(t, idioma=lang, glossario_extra=glossario_extra)
+        if lang == "pt":
             # Guia fonético para paroxítonas suscetíveis a deslocamento tônico no XTTS v2
             from lexico import GUIA_TONICIDADE_PTBR
             for padrao, subst in GUIA_TONICIDADE_PTBR:
                 t = re.sub(padrao, subst, t)
-        elif lang == "es":
-            t = normalizar_numeros_e_simbolos_es(t)
         return t
 
     # Tags de direção de voz ([pausa:1.5s], [enfase]...) não podem ser normalizadas:
