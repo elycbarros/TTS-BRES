@@ -1,6 +1,6 @@
 # 🗺️ Roadmap de Próximas Melhorias — TTSBR
 
-> **Plano da próxima entrega:** [Roadmap Técnico v1.2.0](ROADMAP_1.2.0.md) (ciclo anterior concluído: [0.9.0 Preview → 1.1.0](ROADMAP_0.9.0.md)). O plano detalha as etapas **M1 a M5**, módulos afetados, testes e critérios de lançamento da `1.2.0`.
+> **Plano da versão atual:** [Roadmap Técnico v1.3.0](ROADMAP_1.3.0.md) (ciclos anteriores concluídos: [v1.2.0](ROADMAP_1.2.0.md) e [0.9.0 Preview → 1.1.0](ROADMAP_0.9.0.md)). O plano detalha as etapas **M1 a M5** para clonagem vocal pessoal, condicionamento multi-take e cache de latentes do locutor.
 
 Este documento consolida as sugestões e prioridades planejadas para as próximas iterações do TTSBR, organizadas por impacto e área do pipeline.
 
