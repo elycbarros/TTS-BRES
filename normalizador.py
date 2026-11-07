@@ -384,6 +384,13 @@ def normalizar_numeros_e_simbolos_pt(texto: str) -> str:
     texto = re.sub(r"\b(\d+)(?:[,.](\d+))?\s*%", _sub_pct, texto)
     texto = _normalizar_unidades_medidas_e_intervalos(texto, "pt")
 
+    # Versões semânticas (ex.: 1.2.0, 2.0.1) -> "um ponto dois ponto zero"
+    texto = re.sub(
+        r"\b(\d+)\.(\d+)\.(\d+)\b",
+        lambda m: f"{numero_por_extenso(int(m.group(1)))} ponto {numero_por_extenso(int(m.group(2)))} ponto {numero_por_extenso(int(m.group(3)))}",
+        texto,
+    )
+
     # Decimais restantes (ex.: 3,14 ou 0.01)
     texto = re.sub(
         r"\b(\d+)[,.](\d+)\b",
@@ -488,6 +495,13 @@ def normalizar_numeros_e_simbolos_es(texto: str) -> str:
 
     texto = re.sub(r"\b(\d+)(?:[,.](\d+))?\s*%", _sub_pct, texto)
     texto = _normalizar_unidades_medidas_e_intervalos(texto, "es")
+
+    # Versiones semánticas (ej.: 1.2.0, 2.0.1) -> "uno punto dos punto cero"
+    texto = re.sub(
+        r"\b(\d+)\.(\d+)\.(\d+)\b",
+        lambda m: f"{numero_por_extenso_es(int(m.group(1)))} punto {numero_por_extenso_es(int(m.group(2)))} punto {numero_por_extenso_es(int(m.group(3)))}",
+        texto,
+    )
 
     # Decimais restantes (ex.: 3,14 ou 0.01)
     texto = re.sub(
