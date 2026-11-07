@@ -163,6 +163,41 @@ class TestGlossarioCustomizado(unittest.TestCase):
         self.assertIn("dois ânos", res)
         self.assertIn("dez ânos", res)
 
+    def test_guia_tonicidade_paroxitonas_pt(self):
+        res, _ = normalizar_para_fala("O recorde no circuito sob a rubrica do evento gratuito.", idioma="pt")
+        self.assertIn("recórde", res)
+        self.assertIn("circuíto", res)
+        self.assertIn("rubríca", res)
+        self.assertIn("gratuíto", res)
+
+        # Em espanhol, o guia PT-BR não deve ser aplicado
+        res_es, _ = normalizar_para_fala("El circuito y el recorde.", idioma="es")
+        self.assertNotIn("circuíto", res_es)
+        self.assertNotIn("recórde", res_es)
+
+    def test_novos_termos_ia_pt_e_es(self):
+        pt, _ = normalizar_para_fala("A tokenization e loss function reduziram a latency e melhoraram o throughput do transformer com rag.", idioma="pt")
+        self.assertIn("tôukenizêixon", pt)
+        self.assertIn("lós fânkxon", pt)
+        self.assertIn("lêitênsi", pt)
+        self.assertIn("trú-put", pt)
+        self.assertIn("transfórmer", pt)
+        self.assertIn("rág", pt)
+
+        es, _ = normalizar_para_fala("La tokenization y loss function optimizaron la latency y throughput del transformer con rag.", idioma="es")
+        self.assertIn("tokenizéishon", es)
+        self.assertIn("los fánkshon", es)
+        self.assertIn("léitensi", es)
+        self.assertIn("trú-put", es)
+        self.assertIn("transfórmer", es)
+
+    def test_novos_tons_predefinidos(self):
+        from vozes import TONS_PREDEFINIDOS
+        for tom in ("noticia", "narracao", "entusiasmado"):
+            self.assertIn(tom, TONS_PREDEFINIDOS)
+            self.assertIn("volume_offset_db", TONS_PREDEFINIDOS[tom])
+            self.assertIn("velocidade_fator", TONS_PREDEFINIDOS[tom])
+
     def test_conjuncao_y_espanhol_nao_vira_ye(self):
         # Garante que a conjunção "Y" em início de frase em espanhol não seja tratada como sigla da letra Y ("ye")
         res, _ = normalizar_para_fala("Y en el versículo tres dice: Y entonces ocurrió.", idioma="es")

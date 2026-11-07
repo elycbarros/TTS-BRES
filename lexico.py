@@ -168,6 +168,15 @@ TERMOS_INGLES_PTBR: dict[str, str] = {
     "layer": "lêier",
     "bias": "báias",
     "loss": "lós",
+    "loss function": "lós fânkxon",
+    "loss functions": "lós fânkxons",
+    "tokenization": "tôukenizêixon",
+    "inference": "ínferens",
+    "latency": "lêitênsi",
+    "throughput": "trú-put",
+    "transformers": "transfórmers",
+    "transformer": "transfórmer",
+    "rag": "rág",
     "checkpoints": "tchék-póints",
     "checkpoint": "tchék-póint",
     "baselines": "bêis-láins",
@@ -259,6 +268,17 @@ TERMOS_INGLES_ES: dict[str, str] = {
     "relu": "re-lú",
     "tokens": "tókens",
     "token": "tóken",
+    "tokenization": "tokenizéishon",
+    "loss function": "los fánkshon",
+    "loss functions": "los fánkshons",
+    "inference": "ínferens",
+    "checkpoint": "chékpoint",
+    "checkpoints": "chékpoints",
+    "latency": "léitensi",
+    "throughput": "trú-put",
+    "transformer": "transfórmer",
+    "transformers": "transfórmers",
+    "rag": "rag",
     "embeddings": "embédins",
     "embedding": "embédin",
     "datasets": "deitaséts",
@@ -522,6 +542,36 @@ _UNIDADES_ES = [
 _DEZENAS_ES = [
     "", "", "", "treinta", "cuarenta", "cincuenta",
     "sesenta", "setenta", "ochenta", "noventa",
+]
+
+# ---------------------------------------------------------------------------
+# 7. Guia Fonético de Tonicidade para Paroxítonas (PT-BR)
+# ---------------------------------------------------------------------------
+# Previne que modelos multilíngues (como o XTTS v2) desloquem o acento tônico
+# para a última sílaba em palavras paroxítonas sem acento gráfico.
+GUIA_TONICIDADE_PTBR: list[tuple[str, str]] = [
+    (r"\banos\b", "ânos"),
+    (r"\bAnos\b", "Ânos"),
+    (r"\brecorde\b", "recórde"),
+    (r"\bRecorde\b", "Recórde"),
+    (r"\brecordes\b", "recórdes"),
+    (r"\bRecordes\b", "Recórdes"),
+    (r"\brubrica\b", "rubríca"),
+    (r"\bRubrica\b", "Rubríca"),
+    (r"\brubricas\b", "rubrícas"),
+    (r"\bRubricas\b", "Rubrícas"),
+    (r"\bavaro\b", "aváro"),
+    (r"\bAvaro\b", "Aváro"),
+    (r"\bibero\b", "ibéro"),
+    (r"\bIbero\b", "Ibéro"),
+    (r"\bgratuito\b", "gratuíto"),
+    (r"\bGratuito\b", "Gratuíto"),
+    (r"\bfortuito\b", "fortuíto"),
+    (r"\bFortuito\b", "Fortuíto"),
+    (r"\bcircuito\b", "circuíto"),
+    (r"\bCircuito\b", "Circuíto"),
+    (r"\bcircuitos\b", "circuítos"),
+    (r"\bCircuitos\b", "Circuítos"),
 ]
 _CENTENAS_ES = [
     "", "ciento", "doscientos", "trescientos", "cuatrocientos", "quinientos",

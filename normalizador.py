@@ -637,8 +637,9 @@ def normalizar_para_fala(
         if lang == "pt":
             t = normalizar_numeros_e_simbolos_pt(t)
             # Guia fonético para paroxítonas suscetíveis a deslocamento tônico no XTTS v2
-            t = re.sub(r"\banos\b", "ânos", t)
-            t = re.sub(r"\bAnos\b", "Ânos", t)
+            from lexico import GUIA_TONICIDADE_PTBR
+            for padrao, subst in GUIA_TONICIDADE_PTBR:
+                t = re.sub(padrao, subst, t)
         elif lang == "es":
             t = normalizar_numeros_e_simbolos_es(t)
         return t

@@ -22,6 +22,12 @@
 
 [Luis|pt]: — Bom dia, disse Helena; o relatório de 15 GB já está pronto para revisão.
 
+[Luis|pt]: [tom:noticia] O novo checkpoint de inferência reduziu a latency e ampliou o throughput do cluster.
+
+[Luis|pt]: [tom:narracao] O atleta bateu o recorde histórico no circuito internacional sob a rubrica da federação.
+
+[Luis|pt]: [tom:entusiasmado] Que avanço extraordinário: a tokenization com nova loss function otimizou o transformer!
+
 [Alma|es]: La reunión será el 29/10/2026 a las 10:30.
 
 [Alma|es]: El total es EUR 21,50 y la temperatura bajó a -5 grados.
@@ -45,3 +51,9 @@
 [Alma|es]: [tom:calmo] Cuando una oración es larga y reúne varias observaciones encadenadas, la lectura necesita conservar el ritmo; por eso respetamos las comas, los puntos y comas y la cadencia natural hasta el final.
 
 [Alma|es]: — Buenos días, dijo Elena; el informe de 15 GB ya está listo para revisión.
+
+[Alma|es]: [tom:noticia] El nuevo checkpoint de inferencia redujo la latency y aumentó el throughput del cluster.
+
+[Alma|es]: [tom:narracao] El atleta superó el récord histórico en el circuito internacional bajo la supervisión oficial.
+
+[Alma|es]: [tom:entusiasmado] ¡Qué logro extraordinario: la tokenization con nueva loss function optimizó el transformer!
