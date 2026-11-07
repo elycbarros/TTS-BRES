@@ -31,15 +31,21 @@ def argumentos_sintese(pedido):
     cfg = pedido['configuracao']
     args = [pedido['entrada'], '--saida', cfg['saida'], '--idioma', cfg.get('idioma', 'auto'),
             '--formatos', cfg.get('formatos', 'mp3,wav')]
-    for nome in ('locutor', 'voz', 'vozes_personagens', 'vozes_tons', 'glossario',
+    if cfg.get('perfil_voz'):
+        args.extend(['--perfil-voz', cfg['perfil_voz']])
+    for nome in ('preset', 'locutor', 'voz', 'vozes_personagens', 'vozes_tons', 'glossario',
+                 'revisao_segmentos', 'cache_segmentos',
                  'trilha', 'volume_trilha', 'refazer_segmentos',
+                 'titulo', 'autor',
                  'velocidade', 'volume_alvo', 'lufs', 'taxa_amostragem', 'max_tentativas', 'dispositivo',
                  'pausa_frase', 'pausa_reticencias', 'pausa_ponto_virgula', 'pausa_virgula',
                  'pausa_paragrafo', 'pausa_bloco'):
         valor = cfg.get(nome)
+        if nome == 'voz' and cfg.get('perfil_voz'):
+            continue
         if valor is not None and str(valor).strip():
             args.extend(['--' + nome.replace('_', '-'), str(valor)])
-    for nome in ('sem_normalizar', 'sem_corte_silencio', 'limpar_referencia', 'refazer'):
+    for nome in ('sem_normalizar', 'sem_corte_silencio', 'limpar_referencia', 'por_capitulo', 'refazer'):
         if cfg.get(nome):
             args.append('--' + nome.replace('_', '-'))
     if pedido['modo'] == 'analisar':

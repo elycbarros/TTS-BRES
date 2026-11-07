@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import queue
+import sqlite3
 import subprocess
 import sys
 
@@ -12,7 +13,7 @@ from gui_core import DATA_ROOT, ROOT, ProcessoTrabalho, python_padrao, salvar_pe
 
 try:
     import tkinter as tk
-    from tkinter import filedialog, messagebox, ttk
+    from tkinter import filedialog, messagebox, simpledialog, ttk
     from tkinter.scrolledtext import ScrolledText
     TKINTER_DISPONIVEL = True
 except ImportError:
@@ -42,7 +43,13 @@ if TKINTER_DISPONIVEL:
             janela.geometry("1180x800")
             janela.minsize(980, 700)
 
-            self.processo = ProcessoTrabalho()
+            from tarefas import ClienteFila
+            self.processo = ClienteFila()
+            self.projeto = None
+            self.glossario_projeto = None
+            self.plano_recebido = None
+            self.player_janela = None
+            self.rascunho_after = None
             self.ocupado = False
             self.modo = None
             self.origem = None
@@ -57,14 +64,18 @@ if TKINTER_DISPONIVEL:
             defaults = {
                 "python": python_padrao(),
                 "saida": str(DATA_ROOT / "saida" / "narracao"),
+                "preset": "",
                 "idioma": "auto",
                 "locutor": "Automática",
                 "voz": "",
+                "perfil_voz": "",
                 "vozes_personagens": "",
                 "vozes_tons": "",
                 "glossario": "",
                 "trilha": "",
                 "volume_trilha": "-18",
+                "titulo": "",
+                "autor": "",
                 "formatos": "mp3,wav",
                 "velocidade": "1.1",
                 "volume_alvo": "-20",
@@ -81,8 +92,10 @@ if TKINTER_DISPONIVEL:
                 "sem_normalizar": False,
                 "sem_corte_silencio": False,
                 "limpar_referencia": False,
+                "por_capitulo": False,
                 "refazer": False,
             }
+            self.config_base = dict(defaults)
             try:
                 cfg = json.loads(self.preferencias.read_text(encoding="utf-8"))
                 defaults.update({k: v for k, v in cfg.items() if k in defaults})
@@ -91,6 +104,7 @@ if TKINTER_DISPONIVEL:
 
             for k, v in defaults.items():
                 self.vars[k] = tk.BooleanVar(value=v) if isinstance(v, bool) else tk.StringVar(value=v)
+            self.vars['voz'].trace_add('write', lambda *_: self.vars['perfil_voz'].set(''))
 
             self.status = tk.StringVar(value="Abra um roteiro ou escreva abaixo para começar.")
             self.contagem = tk.StringVar(value="0 palavras")
@@ -100,6 +114,17 @@ if TKINTER_DISPONIVEL:
 
             self._estilo()
             self._construir()
+            menu = tk.Menu(janela)
+            projetos = tk.Menu(menu, tearoff=False)
+            for titulo, acao in [('Novo projeto…', self._novo_projeto), ('Abrir projeto…', self._abrir_projeto),
+                                 ('Salvar projeto', self._salvar_projeto), ('Exportar pacote…', self._exportar_projeto),
+                                 ('Importar pacote…', self._importar_projeto), ('Tomadas A/B…', self._tomadas)]:
+                projetos.add_command(label=titulo, command=acao)
+            menu.add_cascade(label='Projeto', menu=projetos)
+            menu.add_command(label='Fila de tarefas…', command=self._fila)
+            janela.configure(menu=menu)
+            for nome, variavel in self.vars.items():
+                if nome != 'python': variavel.trace_add('write', self._config_alterada)
 
             janela.protocol("WM_DELETE_WINDOW", self._fechar)
             modificadores = ("Control", "Command") if sys.platform == "darwin" else ("Control",)
@@ -195,6 +220,7 @@ if TKINTER_DISPONIVEL:
             self.tree.pack(side="left", fill="both", expand=True)
             scroll.pack(side="right", fill="y")
             self.tree.bind("<<TreeviewSelect>>", self._selecionar)
+            self.tree.bind('<Double-1>', lambda _e: self._ouvir_no_resultado())
 
             ttk.Label(revisao, textvariable=self.detalhe, wraplength=650).pack(fill="x", pady=12)
 
@@ -204,6 +230,9 @@ if TKINTER_DISPONIVEL:
             b_regerar = ttk.Button(acoes_trecho, text="Regerar trecho selecionado", command=self._regerar_trecho)
             b_regerar.pack(side="left")
             self.editaveis.append((b_regerar, "normal"))
+            b = ttk.Button(acoes_trecho, text='Editar fala…', command=self._editar_segmento)
+            b.pack(side='left', padx=6)
+            self.editaveis.append((b, 'normal'))
 
             self.log = ScrolledText(registro, wrap="word", font=("Courier", 10), state="disabled")
             self.log.pack(fill="both", expand=True)
@@ -212,6 +241,8 @@ if TKINTER_DISPONIVEL:
             lateral.grid(row=0, column=1, sticky="ns")
 
             ttk.Label(lateral, text="Configurar a narração", style="Section.TLabel").pack(anchor="w", pady=(0, 12))
+            cb_preset = self._campo(lateral, "Preset", "preset", ("", "narracao", "amostra", "revisao"))
+            cb_preset.bind("<<ComboboxSelected>>", lambda _e: self._aplicar_preset(self.vars["preset"].get()))
             self._campo(lateral, "Idioma", "idioma", ("auto", "pt", "es"))
             self._campo(
                 lateral,
@@ -238,6 +269,10 @@ if TKINTER_DISPONIVEL:
                 text="Escolher referência…",
                 command=lambda: self._arquivo("voz", [("Áudio", "*.wav *.mp3 *.flac *.m4a"), ("Todos", "*")]),
             )
+            b.pack(fill="x", pady=(0, 10))
+            self.editaveis.append((b, "normal"))
+
+            b = ttk.Button(lateral, text="Biblioteca de vozes…", command=self._biblioteca)
             b.pack(fill="x", pady=(0, 10))
             self.editaveis.append((b, "normal"))
 
@@ -349,6 +384,8 @@ if TKINTER_DISPONIVEL:
             self._campo(frame, "Trilha de fundo (BGM) · opcional", "trilha")
             ttk.Button(frame, text="Selecionar trilha…", command=lambda: self._arquivo("trilha", [("Áudio", "*.wav *.mp3 *.flac *.m4a"), ("Todos", "*")])).pack(fill="x", pady=(0, 12))
             self._campo(frame, "Volume da trilha · dB (ex.: -18)", "volume_trilha")
+            self._campo(frame, "Título da obra (metadado opcional)", "titulo")
+            self._campo(frame, "Autor / narrador (metadado opcional)", "autor")
             self._campo(frame, "Glossário adicional · TXT ou JSON", "glossario")
             ttk.Button(frame, text="Selecionar glossário…", command=lambda: self._arquivo("glossario", [("Glossário", "*.txt *.json")])).pack(fill="x", pady=(0, 12))
 
@@ -369,15 +406,252 @@ if TKINTER_DISPONIVEL:
                 ("sem_normalizar", "Desativar normalização"),
                 ("sem_corte_silencio", "Preservar silêncio nas bordas"),
                 ("limpar_referencia", "Higienizar áudio de referência via FFmpeg"),
+                ("por_capitulo", "Exportar também um arquivo por capítulo (# Título)"),
                 ("refazer", "Refazer segmentos, ignorando o cache"),
             ):
                 ttk.Checkbutton(frame, text=titulo, variable=self.vars[nome]).pack(anchor="w", pady=4)
 
-            ttk.Button(frame, text="Concluir", command=top.destroy).pack(fill="x", pady=(12, 0))
+            ttk.Button(frame, text="Restaurar padrões", command=self._restaurar_padroes).pack(fill="x", pady=(10, 0))
+            ttk.Button(frame, text="Concluir", command=top.destroy).pack(fill="x", pady=(8, 0))
             top.bind("<Destroy>", lambda e: self._limpar_widgets() if e.widget == top else None)
+
+        def _aplicar_preset(self, nome: str) -> None:
+            from tts import aplicar_preset_dict
+            atuais = {k: v.get() for k, v in self.vars.items()}
+            novos = aplicar_preset_dict(atuais, nome)
+            for k, val in novos.items():
+                if k in self.vars and not isinstance(self.vars[k].get(), bool):
+                    self.vars[k].set(val)
+
+        def _restaurar_padroes(self) -> None:
+            for k, val in self.config_base.items():
+                if k not in ("python", "saida", "voz", "perfil_voz"):
+                    self.vars[k].set(val)
+            self.status.set("Parâmetros restaurados para os padrões originais.")
 
         def _limpar_widgets(self) -> None:
             self.editaveis = [(w, s) for w, s in self.editaveis if w.winfo_exists()]
+
+        def _novo_projeto(self):
+            if self.ocupado or not self._confirmar_edicao(): return
+            titulo = simpledialog.askstring('Novo projeto', 'Título do projeto:', parent=self.root)
+            if not titulo: return
+            try:
+                from projetos import Projeto
+                from normalizador import carregar_glossario
+                cfg = self._configuracao()
+                glossario = carregar_glossario(cfg.get('glossario'), texto_path=self.origem)
+                projeto = Projeto.criar(titulo, self.editor.get('1.0', 'end-1c'))
+                projeto.atualizar(self.editor.get('1.0', 'end-1c'), cfg, glossario, self.origem)
+                self.projeto = projeto
+                self.glossario_projeto = glossario
+                self.dirty = False
+                self.root.title(f'TTSBR · {titulo}')
+                self.status.set('Projeto salvo. Confira o roteiro antes da primeira geração.')
+            except (OSError, ValueError, sqlite3.Error) as exc: self._erro(str(exc))
+
+        def _fila(self):
+            try:
+                atual = getattr(self, 'fila_janela', None)
+                if atual and atual.janela.winfo_exists():
+                    atual.janela.lift(); return
+                from fila_gui import JanelaFila
+                self.fila_janela = JanelaFila(self.root, self.processo.fila, self.vars['python'].get().strip())
+            except (OSError, ValueError, sqlite3.Error) as exc: self._erro(str(exc))
+
+        def _salvar_projeto(self):
+            if self.ocupado: return False
+            if not self.projeto:
+                self._novo_projeto()
+                return self.projeto is not None
+            try:
+                from normalizador import carregar_glossario
+                cfg = self._configuracao()
+                salvo = self.projeto.configuracao()
+                glossario = self.glossario_projeto
+                if glossario is None or cfg.get('glossario') != salvo.get('glossario'):
+                    glossario = carregar_glossario(cfg.get('glossario'), texto_path=self.origem)
+                self.projeto.atualizar(self.editor.get('1.0', 'end-1c'), cfg, glossario, self.origem)
+                self.glossario_projeto = glossario
+                self.dirty = False
+                self.projeto.caminho.with_suffix('.rascunho.json').unlink(missing_ok=True)
+                self.status.set(f'Projeto salvo: {self.projeto.caminho}')
+                return True
+            except (OSError, ValueError, sqlite3.Error) as exc:
+                self._erro(str(exc)); return False
+
+        def _exportar_projeto(self):
+            if self.ocupado: return
+            if not self.projeto:
+                self._erro('Salve ou abra um projeto antes de exportar.'); return
+            if not self._salvar_projeto(): return
+            destino = filedialog.asksaveasfilename(
+                parent=self.root, title='Exportar pacote de projeto',
+                defaultextension='.json', initialfile=f"{self.projeto.id[:8]}.pacote.json",
+                filetypes=[('Pacote de projeto TTSBR', '*.json')],
+            )
+            if not destino: return
+            incluir_ref = messagebox.askyesno(
+                'Incluir referência de voz?',
+                'Deseja copiar também o WAV de referência (se houver) para uma pasta ao lado do pacote? '
+                'Confirme apenas se você tiver autorização para transportar essa gravação.',
+                parent=self.root,
+            )
+            try:
+                self.projeto.exportar_pacote(destino, incluir_referencia=incluir_ref)
+                self.status.set(f'Pacote exportado: {destino}')
+            except (OSError, ValueError, sqlite3.Error) as exc:
+                self._erro(str(exc))
+
+        def _importar_projeto(self):
+            if self.ocupado or not self._confirmar_edicao(): return
+            origem = filedialog.askopenfilename(
+                parent=self.root, title='Importar pacote de projeto',
+                filetypes=[('Pacote de projeto TTSBR', '*.json')],
+            )
+            if not origem: return
+            try:
+                from projetos import Projeto
+                projeto = Projeto.importar_pacote(origem)
+                self.projeto = projeto
+                self.glossario_projeto = projeto.documento['dados']['glossario']
+                self.dirty = False
+                cfg = projeto.configuracao()
+                for chave, var in self.vars.items():
+                    if chave not in ('python', 'perfil_voz'):
+                        var.set(cfg.get(chave, self.config_base.get(chave, '')))
+                self.vars['perfil_voz'].set('')
+                self.editor.delete('1.0', 'end'); self.editor.insert('1.0', projeto.documento['dados']['roteiro'])
+                self.editor.edit_reset(); self.editor.edit_modified(False)
+                self.root.title('TTSBR · ' + projeto.documento['dados']['titulo'])
+                self.status.set(f'Pacote importado como novo projeto: {projeto.caminho}')
+            except (OSError, ValueError, sqlite3.Error) as exc:
+                self._erro(str(exc))
+
+        def _abrir_projeto(self):
+            if self.ocupado or not self._confirmar_edicao(): return
+            caminho = filedialog.askopenfilename(parent=self.root, title='Abrir projeto',
+                                                 filetypes=[('Projeto TTSBR', 'projeto.json'), ('JSON', '*.json')])
+            if not caminho: return
+            try:
+                from projetos import Projeto
+                try: projeto = Projeto.abrir(caminho)
+                except (OSError, ValueError):
+                    if not messagebox.askyesno('Recuperar projeto', 'Não foi possível abrir. Tentar recuperar o backup anterior?', parent=self.root): return
+                    projeto = Projeto.abrir(caminho, backup=True)
+                    projeto.salvar(recuperar=True)
+                self._fechar_player()
+                self.projeto = None  # Não produzir rascunho enquanto os campos são restaurados.
+                cfg = projeto.configuracao()
+                for chave, var in self.vars.items():
+                    if chave not in ('python', 'perfil_voz'):
+                        var.set(cfg.get(chave, self.config_base.get(chave, '')))
+                self.vars['perfil_voz'].set(cfg.get('perfil_voz', ''))
+                self.editor.delete('1.0', 'end'); self.editor.insert('1.0', projeto.documento['dados']['roteiro'])
+                self.editor.edit_reset(); self.editor.edit_modified(False)
+                origem = projeto.estado['origem']
+                self.origem = (projeto.caminho.parent / origem).resolve() if origem else None
+                self.projeto, self.glossario_projeto = projeto, projeto.documento['dados']['glossario']
+                self.dirty = False
+                self.tree.delete(*self.tree.get_children()); self.segmentos = {}
+                from revisao_segmentos import aplicar_revisao, documento_revisao
+                estado = projeto.estado
+                for seg in aplicar_revisao(estado['segmentos'], documento_revisao(estado['segmentos'], estado['edicoes'])):
+                    self._linha(seg, 'Conferido')
+                self.manifesto = None; self.arquivos = []
+                self.resultado_ref.set('Projeto reaberto. Resultados anteriores no menu Projeto → Tomadas A/B.')
+                self.root.title('TTSBR · ' + projeto.documento['dados']['titulo'])
+                rascunho = projeto.ler_rascunho()
+                if rascunho and messagebox.askyesno('Rascunho encontrado',
+                    f"Recuperar o rascunho da revisão {rascunho['revisao_base']}? O projeto salvo será preservado até salvar novamente.", parent=self.root):
+                    for chave, valor in rascunho.get('configuracao', {}).items():
+                        if chave in self.vars and chave not in ('python', 'perfil_voz'): self.vars[chave].set(valor)
+                    self.vars['perfil_voz'].set(rascunho.get('configuracao', {}).get('perfil_voz', ''))
+                    self.editor.delete('1.0', 'end'); self.editor.insert('1.0', rascunho['roteiro'])
+                    self.dirty = True
+                self._habilitar(True)
+                self.status.set(f'Projeto aberto: {projeto.documento["dados"]["titulo"]}')
+            except (OSError, ValueError, KeyError, TypeError, sqlite3.Error) as exc: self._erro(str(exc))
+
+        def _editar_segmento(self):
+            if self.ocupado: return
+            if not self.projeto:
+                self._erro('Crie ou abra um projeto e confira o roteiro antes de editar segmentos.'); return
+            selecao = self.tree.selection()
+            if not selecao:
+                self._erro('Selecione um segmento conferido.'); return
+            segmento = self.segmentos[selecao[0]]
+            estavel = segmento.get('id_estavel')
+            if not estavel:
+                self._erro('Confira o roteiro para associar os IDs do projeto.'); return
+            texto = simpledialog.askstring('Editar fala preparada',
+                'Correção de até 200 caracteres, sem tags. O roteiro e as pausas originais serão preservados:',
+                initialvalue=segmento['texto'], parent=self.root)
+            if texto is None: return
+            try:
+                self.projeto.editar_segmento(estavel, texto)
+                segmento['texto'] = texto.strip()
+                self._linha(segmento, 'Correção salva')
+                self.detalhe.set(texto)
+            except (ValueError, OSError, sqlite3.Error) as exc: self._erro(str(exc))
+
+        def _tomadas(self):
+            if self.ocupado: return
+            if not self.projeto:
+                self._erro('Abra um projeto primeiro.'); return
+            projeto = self.projeto
+            top = tk.Toplevel(self.root); top.title('Histórico de tomadas · A/B'); top.geometry('650x380')
+            lista = ttk.Treeview(top, columns=('id',), show='headings')
+            lista.heading('id', text='Tomada preservada'); lista.pack(fill='both', expand=True, padx=12, pady=12)
+            tomadas = {t['id']: t for t in projeto.estado['tomadas']}
+            for identidade in tomadas: lista.insert('', 'end', iid=identidade, values=(identidade,))
+            escolhidas = {}
+            status = tk.StringVar(value='Escolha duas tomadas e alterne a reprodução. Apenas uma toca por vez.')
+            def escolher(lado):
+                selecao = lista.selection()
+                if selecao:
+                    escolhidas[lado] = tomadas[selecao[0]]
+                    status.set(' · '.join(f'{k}: {v["id"]}' for k, v in escolhidas.items()))
+            def tocar(lado):
+                if lado not in escolhidas: return
+                tomadas_arquivos = escolhidas[lado]['arquivos']
+                wav = next((p for p in tomadas_arquivos if p.lower().endswith('.wav')), None)
+                if not wav:
+                    self._erro('Essa tomada não tem WAV. Gere uma tomada com formato WAV para comparar.'); return
+                self._player((projeto.caminho.parent / wav).resolve())
+            barra = ttk.Frame(top); barra.pack(fill='x', padx=12)
+            for lado in ('A', 'B'):
+                ttk.Button(barra, text=f'Escolher {lado}', command=lambda l=lado: escolher(l)).pack(side='left')
+                ttk.Button(barra, text=f'Ouvir {lado}', command=lambda l=lado: tocar(l)).pack(side='left')
+            ttk.Label(top, textvariable=status, wraplength=600).pack(fill='x', padx=12, pady=10)
+
+        def _player(self, caminho, inicio=0):
+            try:
+                if not Path(caminho).is_file(): raise ValueError('Arquivo ausente; confira a tomada ou restaure seu backup.')
+                self._fechar_player()
+                from player_gui import JanelaPlayer
+                self.player_janela = JanelaPlayer(self.root, self.vars['python'].get().strip(), caminho, self._abrir_caminho, inicio)
+            except (ValueError, OSError) as exc: self._erro(str(exc))
+
+        def _fechar_player(self):
+            if self.player_janela and self.player_janela.janela.winfo_exists():
+                self.player_janela.fechar()
+            self.player_janela = None
+
+
+        def _biblioteca(self) -> None:
+            if self.ocupado:
+                return
+            try:
+                from biblioteca_gui import JanelaBiblioteca
+                def selecionar(identidade, caminho):
+                    self.vars['voz'].set(str(caminho))
+                    self.vars['perfil_voz'].set(identidade)
+                    self.status.set('Perfil da biblioteca selecionado; a integridade será conferida ao gerar.')
+                self.biblioteca_janela = JanelaBiblioteca(
+                    self.root, self.vars['python'].get().strip(), selecionar, abrir_no_sistema)
+            except (OSError, ValueError, sqlite3.Error) as exc:
+                self._erro(str(exc))
 
         def _configuracao(self) -> dict:
             cfg = {k: v.get() for k, v in self.vars.items()}
@@ -414,6 +688,25 @@ if TKINTER_DISPONIVEL:
                 total = len(self.editor.get("1.0", "end-1c").split())
                 self.contagem.set(f"{total} palavras · alterações não salvas")
                 self.editor.edit_modified(False)
+                self._agendar_rascunho()
+
+        def _config_alterada(self, *_args):
+            if self.projeto and not self.ocupado:
+                self.dirty = True
+                self._agendar_rascunho()
+
+        def _agendar_rascunho(self):
+            if not self.projeto: return
+            if self.rascunho_after: self.root.after_cancel(self.rascunho_after)
+            self.rascunho_after = self.root.after(1000, self._rascunho)
+
+        def _rascunho(self):
+            self.rascunho_after = None
+            if self.projeto and self.dirty:
+                try:
+                    self.projeto.rascunho(self.editor.get('1.0', 'end-1c'),
+                                          {k: v.get() for k, v in self.vars.items()})
+                except (OSError, ValueError) as exc: self.status.set(f'Falha no rascunho: {exc}')
 
         def _confirmar_edicao(self) -> bool:
             if not self.dirty:
@@ -435,6 +728,8 @@ if TKINTER_DISPONIVEL:
                 return
             try:
                 texto = Path(caminho).read_text(encoding="utf-8-sig")
+                self.projeto = None
+                self.glossario_projeto = None
                 self.editor.delete("1.0", "end")
                 self.editor.insert("1.0", texto)
                 self.editor.edit_reset()
@@ -446,6 +741,8 @@ if TKINTER_DISPONIVEL:
                 self._erro(str(exc))
 
         def _salvar(self) -> bool:
+            if self.projeto:
+                return self._salvar_projeto()
             if self.ocupado:
                 return False
             caminho = str(self.origem) if self.origem else filedialog.asksaveasfilename(
@@ -477,6 +774,13 @@ if TKINTER_DISPONIVEL:
                 return
             try:
                 cfg = self._configuracao()
+                if self.projeto and modo in ('analisar', 'gerar', 'amostra'):
+                    if not self._salvar_projeto(): return
+                    cfg = {**cfg, **self.projeto.configuracao()}
+                    if modo == 'gerar':
+                        if not self.projeto.estado['segmentos']:
+                            raise ValueError('Confira o roteiro para preparar os segmentos do projeto primeiro.')
+                        cfg.update(self.projeto.preparar_execucao())
                 if extras_cfg:
                     cfg.update(extras_cfg)
                 texto = self.editor.get("1.0", "end-1c")
@@ -499,6 +803,7 @@ if TKINTER_DISPONIVEL:
                 return
 
             self.modo = modo
+            self.plano_recebido = None
             self.desfecho = "Tarefa concluída."
             self.falhou = False
             self.ocupado = True
@@ -548,6 +853,7 @@ if TKINTER_DISPONIVEL:
                     if tipo == "log":
                         self._registro(e["texto"])
                     elif tipo == "plano":
+                        if self.modo == 'analisar': self.plano_recebido = e['segmentos']
                         for seg in e["segmentos"]:
                             self._linha(seg, "Preparado")
                         self.progresso.configure(maximum=max(1, e["total"]))
@@ -563,6 +869,8 @@ if TKINTER_DISPONIVEL:
                             estado = "Cache" if seg.get("reutilizado") else "Gerado"
                         else:
                             estado = f"WER {seg['wer']:.1%}" if "wer" in seg else "Métricas"
+                            if seg.get('metricas', {}).get('avisos'):
+                                estado += f" · {len(seg['metricas']['avisos'])} aviso(s)"
                         self._linha(seg, estado)
                         self.progresso.configure(maximum=max(1, e["total"]), value=e["concluidos"])
                         self.status.set(f"{e['concluidos']} de {e['total']} segmentos · {estado}")
@@ -578,6 +886,12 @@ if TKINTER_DISPONIVEL:
                             aprov_txt = "todos os trechos dentro do limite." if e["aprovado"] else "há trechos acima do limite."
                             self.desfecho = f"WER global {e['wer_global']:.1%} · {aprov_txt}"
                         self._registro(f"Relatório: {e['relatorio']}")
+                    elif tipo == 'tomada_registrada':
+                        self._registro('Tomada preservada no histórico do projeto.')
+                    elif tipo == 'estado_fila':
+                        if e['estado'] != 'concluida':
+                            self.desfecho = e.get('erro') or ('Tarefa ' + e['estado'] + '. Consulte a fila para retomar.')
+                            self.falhou = e['estado'] not in ('interrompida',)
                     elif tipo == "interrompido":
                         self.desfecho = f"Interrompido com {e['concluidos']} segmentos concluídos. Gere novamente para retomar."
                     elif tipo == "erro":
@@ -590,6 +904,21 @@ if TKINTER_DISPONIVEL:
                             self.desfecho = f"O processo encerrou com código {e['codigo']}. Confira o registro e o Python selecionado."
                             self.tabs.select(2)
                         self.ocupado = False
+                        if self.projeto and not e['codigo'] and not self.falhou:
+                            try:
+                                from projetos import Projeto
+                                atual = Projeto.abrir(self.projeto.caminho)
+                                if not self.projeto.mesmo_conteudo(atual):
+                                    raise ValueError('O projeto foi editado em outra sessão durante a tarefa. Reabra para conferir; o resultado anterior está preservado.')
+                                self.projeto = atual
+                                if self.modo == 'analisar' and self.plano_recebido is not None:
+                                    self.projeto.conferir_plano(self.plano_recebido)
+                                    from revisao_segmentos import aplicar_revisao, documento_revisao
+                                    estado = self.projeto.estado
+                                    for seg in aplicar_revisao(estado['segmentos'], documento_revisao(estado['segmentos'], estado['edicoes'])):
+                                        self._linha(seg, 'Conferido')
+                            except (OSError, ValueError, sqlite3.Error) as exc:
+                                self.desfecho = f'Áudio/execução preservado; falha ao atualizar projeto: {exc}'
                         self._habilitar(True)
                         self.status.set(self.desfecho)
                         if self.fechar_depois:
@@ -642,11 +971,24 @@ if TKINTER_DISPONIVEL:
             if selecao:
                 s = self.segmentos[selecao[0]]
                 self.detalhe.set(s["texto"] + ("\n" + s["arquivo"] if s.get("arquivo") else ""))
+                if s.get('metricas'):
+                    self.detalhe.set(self.detalhe.get() + '\nAvisos de sinal: ' +
+                                     (', '.join(s['metricas']['avisos']) or 'nenhum') +
+                                     '. Clique duas vezes para ouvir no resultado a partir deste segmento.')
+
+        def _ouvir_no_resultado(self):
+            selecao = self.tree.selection()
+            if not selecao: return
+            wav = next((p for p in self.arquivos if p.lower().endswith('.wav')), None)
+            if wav:
+                self._player(wav, inicio=self.segmentos[selecao[0]].get('inicio_s') or 0)
+            else:
+                self._ouvir_trecho()
 
         def _ouvir_trecho(self) -> None:
             selecao = self.tree.selection()
             if selecao and self.segmentos[selecao[0]].get("arquivo"):
-                self._abrir_caminho(self.segmentos[selecao[0]]["arquivo"])
+                self._player(self.segmentos[selecao[0]]["arquivo"])
             else:
                 self._erro("Selecione um segmento já gerado para ouvir.")
 
@@ -656,7 +998,7 @@ if TKINTER_DISPONIVEL:
                 self._erro("Selecione um segmento na tabela para regerar.")
                 return
             seg_id = self.segmentos[selecao[0]]["id"]
-            self._iniciar("gerar", extras_cfg={"refazer_segmentos": str(seg_id)})
+            self._iniciar("gerar", extras_cfg={"refazer_segmentos": str(seg_id), 'refazer': False})
 
         def _ouvir(self) -> None:
             if self.arquivos:
@@ -664,7 +1006,7 @@ if TKINTER_DISPONIVEL:
                     (p for p in self.arquivos if p.endswith(".wav")),
                     next((p for p in self.arquivos if p.endswith(".mp3")), self.arquivos[0]),
                 )
-                self._abrir_caminho(alvo)
+                self._player(alvo)
 
         def _abrir_caminho(self, caminho: str | Path) -> None:
             try:
@@ -676,20 +1018,31 @@ if TKINTER_DISPONIVEL:
             messagebox.showerror("TTSBR", mensagem, parent=self.root)
 
         def _fechar(self) -> None:
+            fila = getattr(self, 'fila_janela', None)
+            if fila and fila.janela.winfo_exists() and fila.ocupada:
+                fila.janela.lift(); return
+            biblioteca = getattr(self, 'biblioteca_janela', None)
+            if biblioteca and biblioteca.janela.winfo_exists():
+                biblioteca.janela.lift()
+                return
             if self.ocupado:
-                if messagebox.askyesno(
-                    "Tarefa em execução",
-                    "Aguardar a tarefa parar e fechar? A síntese para após o trecho atual; validação e exportação precisam terminar.",
-                    parent=self.root,
-                ):
+                escolha = messagebox.askyesnocancel('Tarefa na fila',
+                    'Sim: interromper com segurança e aguardar antes de fechar. Não: fechar a janela e manter a fila em execução. Cancelar: voltar.', parent=self.root)
+                if escolha is True:
                     self.fechar_depois = True
                     if self.modo in ("gerar", "amostra"):
                         self._interromper()
                     else:
                         self.status.set("Aguardando a tarefa terminar para fechar…")
+                    return
+                if escolha is None: return
+                self._fechar_player()
+                self._preferencias_salvar()
+                self.root.destroy()
                 return
             if not self._confirmar_edicao():
                 return
+            self._fechar_player()
             try:
                 self._preferencias_salvar()
             except OSError as exc:

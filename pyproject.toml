@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ttsbr"
-version = "1.0.0"
+version = "1.0.1"
 description = "Pipeline local de conversão de texto para voz (TTS) em Português Brasileiro e Espanhol usando XTTS v2"
 readme = "README.md"
 license = "MIT"
@@ -23,6 +23,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+reproducao = ["sounddevice>=0.5"]
 validacao = ["transformers", "librosa", "soundfile"]
 dev = [
     "pytest>=7.0",
@@ -35,6 +36,9 @@ dev = [
 ttsbr = "tts:main"
 ttsbr-gui = "gui:iniciar_janela"
 ttsbr-api = "servidor_api:main"
+ttsbr-diagnostico = "diagnostico:main"
+ttsbr-vozes = "biblioteca_vozes:main"
+ttsbr-fila = "tarefas:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -50,13 +54,14 @@ py-modules = [
     "tts", "normalizador", "lexico", "segmentador", "vozes", "processamento_audio",
     "audio_persistente", "qualidade_audio", "validar_audio", "medir_audio",
     "comparar_vozes", "servidor_api", "gui", "gui_core", "gui_worker", "caminhos",
+    "diagnostico", "contratos", "biblioteca_vozes", "biblioteca_gui", "projetos", "revisao_segmentos", "reproducao", "player_gui", "tarefas", "supervisor", "exclusao", "fila_gui", "motores", "omnivoice_experimental", "comparar_motores_e4",
 ]
 
 [tool.setuptools.data-files]
 "share/ttsbr" = ["README.md", "LICENSE", "THIRD_PARTY_NOTICES.md", "CHANGELOG.md", "glossario.txt.exemplo"]
-"share/ttsbr/docs" = ["docs/GUI.md", "docs/REFERENCIA.md", "docs/ARQUITETURA.md", "docs/SOBRE.md", "docs/ROADMAP.md", "docs/ESTABILIZACAO.md"]
+"share/ttsbr/docs" = ["docs/GUI.md", "docs/REFERENCIA.md", "docs/ARQUITETURA.md", "docs/SOBRE.md", "docs/ROADMAP.md", "docs/ROADMAP_0.9.0.md", "docs/PREVIEW_0.9.0.md", "docs/BIBLIOTECA_VOZES.md", "docs/PROJETOS_REVISAO.md", "docs/FILA_TAREFAS.md", "docs/MOTORES_E4.md", "docs/ESTABILIZACAO.md"]
 "share/ttsbr/docs/assets" = ["docs/assets/ttsbr-banner.svg"]
-"share/ttsbr/exemplos" = ["exemplos/narracao_pt.txt", "exemplos/narracao_es.txt", "exemplos/dialogo.txt", "exemplos/expressividade.txt"]
+"share/ttsbr/exemplos" = ["exemplos/narracao_pt.txt", "exemplos/narracao_es.txt", "exemplos/dialogo.txt", "exemplos/expressividade.txt", "exemplos/captacao_voz_pt.txt", "exemplos/captacao_voz_es.txt"]
 "share/ttsbr/avaliacao" = ["avaliacao/GUIA.md", "avaliacao/corpus_pt_es.txt", "avaliacao/resultado_inicial.json", "avaliacao/resultado_estabilizacao.json"]
 
 "share/ttsbr/constraints" = ["constraints/macos-py312.txt", "constraints/macos-py312-recente.txt"]

@@ -208,6 +208,33 @@ def dividir_em_blocos(itens: list[tuple[str, bool, str, str | None]], dividir: b
     return blocos
 
 
+def separar_capitulos(texto: str) -> list[tuple[str | None, str]]:
+    """Separa o roteiro em capítulos por cabeçalhos Markdown (`# ...` ou `## ...`).
+
+    Retorna `[(titulo, corpo)]`. Quando não há cabeçalhos, retorna `[(None, texto)]`.
+    Quando há texto antes do primeiro cabeçalho, inclui uma seção introdutória.
+    """
+    linhas = texto.splitlines()
+    indices = [i for i, l in enumerate(linhas) if re.match(r"^\s*#{1,2}\s+\S", l)]
+    if not indices:
+        return [(None, texto)]
+    capitulos: list[tuple[str | None, str]] = []
+    if indices[0] > 0:
+        intro = "\n".join(linhas[: indices[0]]).strip()
+        if intro:
+            capitulos.append(("Introdução", intro))
+    for pos, idx in enumerate(indices):
+        fim = indices[pos + 1] if pos + 1 < len(indices) else len(linhas)
+        titulo = re.sub(r"^\s*#{1,2}\s+", "", linhas[idx]).strip()
+        corpo = "\n".join(linhas[idx + 1 : fim]).strip()
+        if corpo:
+            capitulos.append((f"{titulo}. {corpo}", corpo))
+            capitulos[-1] = (titulo, f"{titulo}.\n\n{corpo}")
+    if not capitulos:
+        raise ValueError("Os capítulos demarcados por '#' estão vazios.")
+    return capitulos
+
+
 def limpar_para_voz(trecho: str) -> str:
     """Texto enviado ao XTTS: sem pontuação de encerramento de frase (evita leitura literal
     da palavra 'ponto' ou 'punto') e sem ; e :, mas preservando vírgula ao final de cláusulas

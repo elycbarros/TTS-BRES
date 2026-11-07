@@ -1,5 +1,7 @@
 # 🗺️ Roadmap de Próximas Melhorias — TTSBR
 
+> **Plano da próxima entrega:** [0.9.0 Preview → 1.1.0](ROADMAP_0.9.0.md). O plano detalha prioridades, arquitetura, testes e critérios de promoção. As ideias abaixo permanecem como backlog; não representam compromisso de inclusão no preview.
+
 Este documento consolida as sugestões e prioridades planejadas para as próximas iterações do TTSBR, organizadas por impacto e área do pipeline.
 
 ---
@@ -10,17 +12,18 @@ Este documento consolida as sugestões e prioridades planejadas para as próxima
   - Próximos termos a adicionar: *tokenization*, *loss function*, *inference*.
 - [ ] **Guia de tonicidade automática para paroxítonas suscetíveis a oxítonas**:
   - Mapear e tratar palavras paroxítonas em que modelos multilíngues (XTTS v2) tendem a deslizar a tonicidade para a última sílaba, aplicando acentuação gráfica auxiliar invisível na camada de fala (a exemplo do que foi implementado com sucesso para `\banos\b` → `ânos`).
-- [ ] **Normalização de grandezas e faixas compostas**:
-  - Leitura natural de unidades com barra ou expoentes (`km/h`, `MB/s`, `m²`, `°C`).
-  - Reconhecimento de intervalos monetários e numéricos (ex.: `R$ 10 a R$ 20`, `5 a 10 dias`).
+- [x] **Normalização de grandezas e faixas compostas** *(Entregue na E5)*:
+  - Leitura natural de unidades com barra ou expoentes (`km/h`, `MB/s`, `m²`, `°C`), horários `12h30`, ordinais (`1º`, `2ª`, `1er`, `3er`), intervalos (`10-20`) e `€` posposto.
 
 ---
 
 ## 2. 🖥️ Interface Gráfica Local (GUI)
+
+O player básico com pausa/busca foi implementado na E2; a forma de onda permanece planejada.
 - [ ] **Player integrado com forma de onda (waveform)**:
   - Permitir a reprodução do áudio final e de cada segmento individual diretamente pela janela do aplicativo (sem depender de players externos como QuickTime).
-- [ ] **Edição rápida e regeração por segmento**:
-  - Botão de ação rápida na tabela de segmentos para editar o texto corrigido e acionar `--refazer-segmentos` em 1 clique.
+- [x] **Edição rápida e regeração por segmento** *(E2 do preview)*:
+  - Ações na tabela para editar a fala preparada e regerar o segmento, preservando o roteiro e as tomadas anteriores.
 - [ ] **Catálogo visual de vozes e locutores**:
   - Menu seletor com as vozes de estúdio cadastradas (`Luis Moray`, `Sofia Hellen`, `Tammie Ema`, etc.) e botão de prévia (*preview*) auditiva.
 
@@ -31,8 +34,8 @@ Este documento consolida as sugestões e prioridades planejadas para as próxima
   - Fornecer amostras curtas pré-higienizadas (com corte de ruído e normalização LUFS) para estilos específicos: narração neutra, leitura de notícias e podcasts informais.
 - [ ] **Expansão das tags de estilo e emoção**:
   - Suporte a novas variações de tom como `[tom:noticia]`, `[tom:narracao]`, `[tom:entusiasmado]`.
-- [ ] **Capítulos e metadados ID3**:
-  - Inserção automática de marcadores de capítulo no arquivo MP3 com base nos blocos e parágrafos do roteiro, facilitando a navegação em audiolivros e podcasts longos.
+- [x] **Capítulos por arquivo e metadados básicos** *(Entregue na E5; capítulos embutidos/M4B adiados)*:
+  - Exportação por capítulo (`--por-capitulo` com `#`/`##`) e metadados simples (`--titulo`, `--autor`).
 
 ---
 

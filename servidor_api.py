@@ -14,6 +14,8 @@ import contextlib
 import io
 import json
 import math
+import sys
+import time
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -58,11 +60,14 @@ def resolver_voz_openai(voice: str | None) -> tuple[str | None, str | None]:
 class MotorAPI:
     """Gerencia a execução thread-safe e o cache persistente de segmentos do servidor."""
 
-    def __init__(self, pasta_cache: Path | str | None = None, dispositivo: str = "auto"):
+    def __init__(self, pasta_cache: Path | str | None = None, dispositivo: str = "auto",
+                 usar_fila=True, fila=None):
         self.pasta_cache = Path(pasta_cache or (pasta_dados() / "saida" / "api_cache"))
         self.pasta_cache.mkdir(parents=True, exist_ok=True)
         self.dispositivo = dispositivo
         self.lock = threading.Lock()
+        self.usar_fila = usar_fila
+        self.fila = fila
 
     def sintetizar(self, dados: dict) -> tuple[bytes, str]:
         if not isinstance(dados, dict):
@@ -91,6 +96,34 @@ class MotorAPI:
             raise ValueError("O campo 'language' deve ser 'auto', 'pt' ou 'es'.")
 
         locutor, caminho_voz = resolver_voz_openai(dados.get("voice"))
+
+        if self.usar_fila:
+            from tarefas import Fila, TERMINAIS
+            from gui_core import salvar_pedido
+            if self.fila is None: self.fila = Fila()
+            cfg = {'saida': None, 'idioma': idioma, 'formatos': formato,
+                   'velocidade': velocidade, 'dispositivo': self.dispositivo,
+                   'cache_segmentos': str(self.pasta_cache / 'api_cache.segmentos')}
+            if caminho_voz: cfg['voz'] = caminho_voz
+            elif locutor: cfg['locutor'] = locutor
+            if dados.get('lufs') is not None: cfg['lufs'] = dados['lufs']
+            if dados.get('limpar_referencia'): cfg['limpar_referencia'] = True
+            with tempfile.TemporaryDirectory(dir=self.pasta_cache) as tmp:
+                pedido = salvar_pedido('gerar', texto, cfg, pasta=tmp)
+                identidade = self.fila.enfileirar(sys.executable, pedido)
+            self.fila.iniciar_coordenador()
+            ultimo_inicio = time.monotonic()
+            while True:
+                tarefa = self.fila.obter(identidade)
+                if tarefa['estado'] in TERMINAIS: break
+                if tarefa['estado'] == 'aguardando' and time.monotonic() - ultimo_inicio > 1:
+                    self.fila.iniciar_coordenador(); ultimo_inicio = time.monotonic()
+                time.sleep(.1)
+            if tarefa['estado'] != 'concluida':
+                raise RuntimeError(tarefa['erro'] or 'Tarefa não concluída: ' + tarefa['estado'])
+            resultado = tarefa['resultado']['resultado']
+            arquivo = next(p for p in resultado['arquivos'] if p.endswith('.' + formato))
+            return Path(arquivo).read_bytes(), CONTENT_TYPES[formato]
 
         with self.lock, tempfile.TemporaryDirectory(dir=self.pasta_cache, prefix=".req-") as tmp:
             entrada = Path(tmp) / "entrada.txt"
@@ -127,8 +160,8 @@ class MotorAPI:
 
 
 def criar_servidor(host: str = "127.0.0.1", porta: int = 8000,
-                   pasta_cache: Path | str | None = None, dispositivo: str = "auto") -> ThreadingHTTPServer:
-    motor = MotorAPI(pasta_cache=pasta_cache, dispositivo=dispositivo)
+                   pasta_cache: Path | str | None = None, dispositivo: str = "auto", usar_fila=True, fila=None) -> ThreadingHTTPServer:
+    motor = MotorAPI(pasta_cache=pasta_cache, dispositivo=dispositivo, usar_fila=usar_fila, fila=fila)
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, format, *args):

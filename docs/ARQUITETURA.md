@@ -88,3 +88,23 @@ A interrupção é cooperativa, verificada antes de processar um segmento e ante
 ## Construção e instalação
 
 A lista de módulos e recursos é explícita no `pyproject.toml`. `scripts/construir.py` trabalha em uma cópia temporária pública para impedir que diretórios privados e metadados AppleDouble do volume externo contaminem a distribuição. A GUI e a API usam `caminhos.pasta_dados()` para dados graváveis; recursos instalados são localizados em `share/ttsbr` do ambiente Python. Os resultados de instalação e as validações restantes estão em [ESTABILIZACAO.md](ESTABILIZACAO.md).
+
+## Biblioteca privada (E1)
+
+`biblioteca_vozes.py` mantém perfis v1 no SQLite e referências imutáveis por ID. A importação converte em diretório temporário, move os arquivos e registra o perfil em transação; rollback remove a pasta recém-publicada. O backup copia um snapshot SQLite e os arquivos referenciados, verificando hashes. Remoção é lógica para preservar os arquivos. `biblioteca_gui.py` executa a importação no `gui_worker.py` usando o Python de síntese, mantendo a janela responsiva; os pedidos ficam em pasta local ignorada. O perfil passa para `tts.py` por ID e é resolvido antes de usar a referência. A transcrição é metadado, ainda sem condicionamento pelo XTTS. Os projetos foram integrados na E2 e a fila persistente na E3.
+
+## Projetos e revisão (E2)
+
+`projetos.py` mantém JSON como autoridade, índice SQLite de gravação, revisão otimista e backup anterior. As vozes são vinculadas na biblioteca antes de publicar o projeto. `revisao_segmentos.py` reconcilia IDs por subsequências, invalida ocorrências ambíguas e valida correções contra o hash do plano. `tts.py` recebe `--revisao-segmentos` e `--cache-segmentos`; o worker fornece o glossário congelado e registra snapshots dos segmentos após a montagem. O histórico mantém resultados próprios e não aponta para WAVs mutáveis do cache. `reproducao.py` roda o stream de áudio em subprocesso; `player_gui.py` transporta comandos JSON. Veja [limites de persistência e recuperação](PROJETOS_REVISAO.md).
+
+## Fila e guardião (E3)
+
+`tarefas.py` mantém a fila SQLite e snapshots imutáveis. `ClienteFila` adapta eventos para a GUI; a API enfileira por padrão e aguarda o resultado. `supervisor.py` separa coordenador e guardião por tarefa, mantendo timeout/cancelamento ativos se o coordenador cair. O worker publica recibo de conclusão com hashes; estado terminal só é confirmado após saída e verificação. `exclusao.py` protege saída/cache entre processos e retém o recurso enquanto houver worker sobrevivente. Vínculos órfãos são reconciliados por dono/raiz da fila. Consulte [arquivos, retenção, recuperação e limites](FILA_TAREFAS.md).
+
+## Contrato de motores e worker experimental (E4)
+
+`motores.py` define o protocolo `MotorSintese` e o adaptador `MotorXTTS`; motor e modelo entram na chave do cache e no manifesto. `omnivoice_experimental.py` roda isolado em Python próprio e `comparar_motores_e4.py` supervisiona a execução, verifica cada arquivo de pesos contra os metadados de download do Hugging Face (commit e ETag) e protege saídas existentes. O candidato não integra a GUI nem a fila até aprovação auditiva PT/ES; veja [MOTORES_E4.md](MOTORES_E4.md).
+
+## Qualidade, presets, capítulos e pacote portátil (E5 e E6)
+
+`normalizador.py` e `lexico.py` expandem unidades compostas (`km/h`, `MB/s`), potências (`m²`, `m³`), temperaturas (`°C`, `°F`, `K`), horários `12h30`, ordinais (`1º`, `2ª`, `1er`, `3er`), intervalos (`10-20`) e `€` posposto. `tts.py` oferece `--preset` (`narracao`, `amostra`, `revisao`), `--por-capitulo` (cabeçalhos `#`/`##`) e metadados (`--titulo`, `--autor`), enquanto `audio_persistente.py` mede o loudness integrado (LUFS/dBTP/LRA) do arquivo final separado das métricas por segmento. `projetos.py` exporta e importa pacotes JSON portáveis (`ttsbr.pacote_projeto` v1) com verificação de tamanho, extensão e SHA-256 para referências opcionais.

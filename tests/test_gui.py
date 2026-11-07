@@ -170,7 +170,7 @@ class TestEventosPipeline(unittest.TestCase):
             api.TTS = MagicMock()
             modelo = api.TTS.return_value.to.return_value
             modelo.tts.return_value = np.sin(np.arange(2400) * .1) * .1
-            motor = servidor_api.MotorAPI(pasta_cache=p / 'cache_api', dispositivo='cpu')
+            motor = servidor_api.MotorAPI(pasta_cache=p / 'cache_api', dispositivo='cpu', usar_fila=False)
             with patch.dict(sys.modules, {'TTS.api': api}), \
                     patch.object(tts, 'escolher_dispositivo', return_value='cpu'), \
                     patch.object(tts, 'configurar_ffmpeg'):

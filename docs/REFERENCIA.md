@@ -25,6 +25,8 @@ python tts.py --help
 A tabela completa de opções de síntese e pausas está no [README](../README.md#opcoes).
 
 - `--analisar` prepara e imprime os segmentos, sem carregar XTTS nem criar manifesto, cache ou áudio. As validações da entrada continuam ativas.
+- `--preset` aplica um perfil predefinido (`narracao`, `amostra` ou `revisao`); qualquer flag informada explicitamente na linha de comando prevalece sobre o preset.
+- `--por-capitulo` gera, além do áudio principal, um arquivo numerado por capítulo (`<saida>.cap01.mp3`, etc.) demarcado por `#` ou `##` no roteiro, com legendas recalculadas por capítulo. `--titulo` e `--autor` gravam metadados básicos nos arquivos de áudio.
 - `--saida` é o nome **base**. `aula.v2` gera `aula.v2.mp3`; `aula.mp3` gera `aula.mp3.mp3` se MP3 estiver selecionado.
 - Formatos são convertidos para minúsculas e duplicatas são removidas (`mp3`, `wav`, `srt`, `vtt`). Listas com itens vazios, como `mp3,`, são rejeitadas.
 - `--wav`, `--srt` e `--vtt` acrescentam respectivamente `.wav`, `.srt` e `.vtt` à lista; com `--formatos wav`, eles não acrescentam MP3.
@@ -85,8 +87,10 @@ Variações ortográficas e erros do Whisper afetam a medida. Na amostra inicial
 | `analise_previa` | Quantidade estimada de palavras, duração, necessidade de divisão, idioma dominante e voz global. |
 | `blocos` | Identificador, palavras, texto e `texto_falado` de cada bloco. |
 | `estado` | `sintetizando`, `montando`, `interrompido` ou `concluido`. Pode permanecer na etapa interrompida. |
-| `configuracao` | Python, versões de bibliotecas, dispositivo solicitado, velocidade, volume, corte, hash da referência e hashes dos módulos principais do pipeline, incluindo os módulos extraídos. |
+| `configuracao` | Python, versões de bibliotecas, motor/modelo, preset, dispositivo solicitado, velocidade, volume, corte, hash da referência e hashes dos módulos principais do pipeline. |
 | `segmentos` | Falas concluídas na execução, incluindo trechos recuperados do cache. |
+| `metricas_finais` | Medição do arquivo final exportado após trilha/LUFS (`lufs_integrado`, `true_peak_dbtp`, `lra_lu`, `duracao_s`, `tamanho_bytes` e, para WAV, `rms_dbfs`/`pico_dbfs`), separada das métricas individuais de segmento. |
+| `capitulos` | Presente quando `--por-capitulo` é usado; lista `id`, `titulo`, `arquivos` e `metricas_finais` de cada capítulo. |
 
 Cada entrada em `segmentos` contém `id`, `bloco`, `texto`, `idioma`, `locutor`, `arquivo`, `chave`, `inicio_s`, `fim_s`, `duracao_s` e `reutilizado`. `locutor` é `null` quando há referência de voz. As posições usam a linha do tempo do WAV, incluindo 200 ms de silêncio inicial e as pausas anteriores.
 
@@ -149,6 +153,18 @@ O servidor limita o corpo da requisição a 2.000.000 bytes. Respostas de sucess
 
 `GET /v1/models` lista identificadores de compatibilidade; `tts-1`, `tts-1-hd` e `xtts_v2` não representam três modelos instalados. `GET /v1/voices` mostra nomes e aliases locais, sem prometer equivalência com vozes de outros serviços.
 
-A síntese é protegida por um bloqueio e ocorre uma requisição por vez. O cache é compartilhado, mas o modelo não é mantido em memória entre chamadas. O arquivo de resposta é lido integralmente para memória. Não há autenticação, fila persistente nem mecanismo de isolamento para usuários distintos; mantenha o uso no endereço local padrão. O servidor é uma integração experimental, não uma reprodução completa da API de outro fornecedor.
+A fila E3 processa uma síntese por vez; diferentes requisições podem aguardar na fila. O cache é compartilhado, mas o modelo não é mantido em memória entre chamadas. O arquivo de resposta é lido integralmente para memória. A E3 adiciona fila persistente local. Não há autenticação nem mecanismo de isolamento para usuários distintos; mantenha o uso no endereço local padrão. O servidor é uma integração experimental, não uma reprodução completa da API de outro fornecedor.
 
 Na instalação por wheel, o cache padrão da API usa a pasta de dados do usuário, sem escrever junto aos módulos. No checkout permanece em `saida/api_cache`. `TTSBR_HOME` altera a raiz; `--pasta-cache` escolhe diretamente o diretório da API. Entradas `input` não textuais, `speed` nulo/inválido e `limpar_referencia` não booleano são rejeitadas com erro de entrada.
+
+## Biblioteca de vozes
+
+`--perfil-voz ID` seleciona uma referência da biblioteca privada e verifica sua integridade antes da síntese ou análise. É incompatível com `--voz`. O comando `ttsbr-vozes` (ou `python biblioteca_vozes.py`) oferece importação, listagem, renomeação, resolução de referência, remoção lógica, restauração e backup. Veja a [referência de uso da biblioteca](BIBLIOTECA_VOZES.md). As respostas JSON contêm dados privados e não devem ser publicadas.
+
+## Revisão de projeto (E2)
+
+`--revisao-segmentos ARQUIVO` aplica correções de fala somente se o plano conferido corresponder ao hash do documento. `--cache-segmentos PASTA` permite reaproveitar segmentos entre tomadas com saídas diferentes. Sem essas opções, os caminhos da CLI continuam os anteriores. Para gerenciar histórico, rascunhos e snapshots, use [Projetos e revisão](PROJETOS_REVISAO.md).
+
+## Fila e supervisão (E3)
+
+`ttsbr-fila` ou `python tarefas.py` oferece `listar`, `rodar`, `adicionar`, `interromper`, `cancelar` e `retomar`. `--raiz PASTA` é global; `adicionar PEDIDO --python EXECUTAVEL` captura o pedido antes de iniciar o coordenador. A API usa essa fila por padrão e responde após conclusão; desconectar o cliente não cancela a tarefa. Veja [operação, estados, timeouts e privacidade](FILA_TAREFAS.md).

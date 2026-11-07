@@ -426,6 +426,19 @@ UNIDADES_PTBR: dict[str, tuple[str, str]] = {
     "km": ("quilômetro", "quilômetros"),
     "cm": ("centímetro", "centímetros"),
     "mm": ("milímetro", "milímetros"),
+    "m": ("metro", "metros"),
+    "kg": ("quilograma", "quilogramas"),
+    "g": ("grama", "gramas"),
+    "mg": ("miligrama", "miligramas"),
+    "l": ("litro", "litros"),
+    "L": ("litro", "litros"),
+    "ml": ("mililitro", "mililitros"),
+    "mL": ("mililitro", "mililitros"),
+    "W": ("watt", "watts"),
+    "kW": ("quilowatt", "quilowatts"),
+    "kWh": ("quilowatt-hora", "quilowatts-hora"),
+    "Mbps": ("megabit por segundo", "megabits por segundo"),
+    "Gbps": ("gigabit por segundo", "gigabits por segundo"),
 }
 
 UNIDADES_ES: dict[str, tuple[str, str]] = {
@@ -444,7 +457,44 @@ UNIDADES_ES: dict[str, tuple[str, str]] = {
     "km": ("kilómetro", "kilómetros"),
     "cm": ("centímetro", "centímetros"),
     "mm": ("milímetro", "milímetros"),
+    "m": ("metro", "metros"),
+    "kg": ("kilogramo", "kilogramos"),
+    "g": ("gramo", "gramos"),
+    "mg": ("miligramo", "miligramos"),
+    "l": ("litro", "litros"),
+    "L": ("litro", "litros"),
+    "ml": ("mililitro", "mililitros"),
+    "mL": ("mililitro", "mililitros"),
+    "W": ("vatio", "vatios"),
+    "kW": ("kilovatio", "kilovatios"),
+    "kWh": ("kilovatio hora", "kilovatios hora"),
+    "Mbps": ("megabit por segundo", "megabits por segundo"),
+    "Gbps": ("gigabit por segundo", "gigabits por segundo"),
 }
+
+# Unidades cujo substantivo é feminino: "duas horas", "una hora".
+UNIDADES_FEMININAS_PTBR = frozenset({"h"})
+UNIDADES_FEMININAS_ES = frozenset({"h"})
+
+# Denominadores aceitos em unidades compostas (km/h, MB/s, m/min).
+DENOMINADORES_PTBR: dict[str, str] = {"h": "hora", "s": "segundo", "min": "minuto"}
+DENOMINADORES_ES: dict[str, str] = {"h": "hora", "s": "segundo", "min": "minuto"}
+
+# Potências de unidades de comprimento (m², km², cm³).
+POTENCIAS_PTBR: dict[str, tuple[str, str]] = {"²": ("quadrado", "quadrados"), "³": ("cúbico", "cúbicos")}
+POTENCIAS_ES: dict[str, tuple[str, str]] = {"²": ("cuadrado", "cuadrados"), "³": ("cúbico", "cúbicos")}
+
+# Ordinais até 99, por unidade e dezena (forma masculina).
+ORDINAIS_PTBR = (
+    ["", "primeiro", "segundo", "terceiro", "quarto", "quinto", "sexto", "sétimo", "oitavo", "nono"],
+    ["", "décimo", "vigésimo", "trigésimo", "quadragésimo", "quinquagésimo",
+     "sexagésimo", "septuagésimo", "octogésimo", "nonagésimo"],
+)
+ORDINAIS_ES = (
+    ["", "primero", "segundo", "tercero", "cuarto", "quinto", "sexto", "séptimo", "octavo", "noveno"],
+    ["", "décimo", "vigésimo", "trigésimo", "cuadragésimo", "quincuagésimo",
+     "sexagésimo", "septuagésimo", "octogésimo", "nonagésimo"],
+)
 
 # ---------------------------------------------------------------------------
 # 6. Tabelas Numéricas para Extenso

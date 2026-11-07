@@ -169,6 +169,36 @@ class TestGlossarioCustomizado(unittest.TestCase):
         self.assertTrue(res.startswith("Y en el"))
         self.assertNotIn("ye en el", res.lower())
 
+    def test_unidades_compostas_potencias_temperatura_e_intervalos_pt(self):
+        casos = [
+            ("Velocidade de 80 km/h e 1 km/h.", "oitenta quilômetros por hora e um quilômetro por hora"),
+            ("Taxa de 12,5 MB/s em 2h.", "doze vírgula cinco megabytes por segundo em duas horas"),
+            ("Terreno de 300 m² e 1 m³.", "trezentos metros quadrados e um metro cúbico"),
+            ("Fez 25 °C hoje e -3,5°C ontem.", "vinte e cinco graus Celsius hoje e menos três vírgula cinco graus Celsius ontem"),
+            ("Das 10h às 12h30.", "Das dez horas às doze horas e trinta minutos."),
+            ("Páginas 10-20 e período 1990–2000.", "Páginas dez a vinte e período mil novecentos e noventa a dois mil."),
+            ("1º lugar, 2ª etapa e 23.º capítulo.", "primeiro lugar, segunda etapa e vigésimo terceiro capítulo."),
+            ("Caixa de 5 kg com 250 ml.", "Caixa de cinco quilogramas com duzentos e cinquenta mililitros."),
+        ]
+        for entrada, esperado in casos:
+            with self.subTest(entrada=entrada):
+                res, _ = normalizar_para_fala(entrada, idioma="pt")
+                self.assertIn(esperado, res)
+
+    def test_unidades_compostas_euro_posposto_e_ordinais_es(self):
+        casos = [
+            ("Viaja a 80 km/h y 1 km/h.", "ochenta kilómetros por hora y un kilómetro por hora"),
+            ("Transfiere 12,5 MB/s en 2 h.", "doce coma cinco megabytes por segundo en dos horas"),
+            ("Tiene 300 m² y 1 m³ a 25 °C.", "trescientos metros cuadrados y un metro cúbico a veinticinco grados Celsius"),
+            ("Cuesta 1.250,50 € y 1 €.", "mil doscientos cincuenta euros y cincuenta céntimos y un euro"),
+            ("De las 10h a las 12h30.", "De las diez horas a las doce horas y treinta minutos."),
+            ("En la 1ª etapa, el 1er capítulo y el 3er anexo.", "En la primera etapa, el primer capítulo y el tercer anexo."),
+        ]
+        for entrada, esperado in casos:
+            with self.subTest(entrada=entrada):
+                res, _ = normalizar_para_fala(entrada, idioma="es")
+                self.assertIn(esperado, res)
+
 
 if __name__ == "__main__":
     unittest.main()

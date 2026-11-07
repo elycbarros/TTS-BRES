@@ -57,9 +57,12 @@ O normalizador converte elementos escritos para formas mais adequadas à fala:
 |---|---|
 | `95%` | noventa e cinco por cento |
 | `16GB` | dezesseis gigabytes |
+| `80 km/h`, `12,5 MB/s` | oitenta quilômetros por hora, doze vírgula cinco megabytes por segundo |
+| `300 m²`, `25 °C` | trezentos metros quadrados, vinte e cinco graus Celsius |
 | `29/10/2026` | vinte e nove de outubro de dois mil e vinte e seis |
-| `10:30` | dez horas e trinta minutos |
+| `10:30`, `12h30` | dez horas e trinta minutos, doze horas e trinta minutos |
 | `R$ 12,50` | doze reais e cinquenta centavos |
+| `1º`, `2ª`, `10-20` | primeiro, segunda, dez a vinte |
 | `-5` | menos cinco |
 | `GPU`, `API`, `IA` | Pronúncias cadastradas para as siglas. |
 
@@ -71,7 +74,7 @@ Há regras equivalentes para espanhol e um conjunto de aproximações fonéticas
 - Horários seguem o formato de 24 horas.
 - Valores monetários usam vírgula decimal e ponto para milhares.
 - `$` é interpretado como dólar americano.
-- Valores com ponto decimal ou símbolo monetário após o número não têm tratamento monetário específico.
+- Valores com ponto decimal não têm tratamento monetário específico (`€`/`EUR` posposto com vírgula decimal é suportado, ex.: `1.250,50 €`).
 - Uma expressão como `10:30` é interpretada como horário, mesmo que represente um capítulo ou uma proporção.
 - URLs, fórmulas, código, tabelas e notação científica não têm uma leitura especializada completa.
 - Aspas e pontuação ambígua ainda podem dificultar a divisão de frases.
@@ -164,13 +167,13 @@ O servidor HTTP local oferece compatibilidade parcial para `POST /v1/audio/speec
 
 ## Interface gráfica local
 
-A [GUI inicial](GUI.md) permite abrir e editar roteiros, configurar a síntese, conferir o texto preparado, gerar uma amostra, acompanhar segmentos, solicitar interrupção após o trecho e revisar os resultados. A GUI também permite regenerar um segmento selecionado e configurar LUFS, taxa de amostragem, trilha e referências por personagem ou tom. A reprodução usa o player padrão do sistema. A janela usa Tkinter e o trabalho pesado ocorre em outro processo, com o mesmo pipeline da CLI.
+A [GUI inicial](GUI.md) permite abrir e editar roteiros, configurar a síntese, conferir o texto preparado, gerar uma amostra, acompanhar segmentos, solicitar interrupção após o trecho e revisar os resultados. A GUI também permite regenerar um segmento selecionado e configurar LUFS, taxa de amostragem, trilha e referências por personagem ou tom. A reprodução oferece player WAV interno opcional e acesso ao player padrão do sistema. A janela usa Tkinter e o trabalho pesado ocorre em outro processo, com o mesmo pipeline da CLI.
 
 É uma versão para uso pessoal, sem instalador ou Python embutido. Pode usar um Python para a janela e outro para o ambiente do modelo. Preferências e snapshots são salvos em `local/gui/`, ignorado pelo Git. Os testes automatizados cobrem a integração; a janela e o player ainda precisam de validação no desktop, incluindo Windows.
 
 ## O que o projeto não oferece atualmente
 
-- Instaladores independentes, player embutido ou edição de áudio por forma de onda.
+- Instaladores independentes ou edição de áudio por forma de onda.
 - Serviço multiusuário em nuvem ou fila distribuída de processamento (o `servidor_api.py` é local e em beta).
 - Streaming de voz em tempo real chunk a chunk.
 - Importação direta de PDF, Word, páginas da web ou imagens.
@@ -192,3 +195,15 @@ A síntese é executada localmente. A instalação das dependências e o primeir
 As dependências não estão fixadas por versão, portanto instalações futuras podem apresentar diferenças de compatibilidade ou comportamento. Os scripts de síntese definem `COQUI_TOS_AGREED=1`; os termos do modelo devem ser consultados antes do uso.
 
 O TTSBR é adequado para gerar narrações de roteiros preparados, recuperar trabalho após interrupções e apoiar a revisão com transcrição e métricas. Para publicar um áudio, a conferência do conteúdo e a audição do resultado continuam sendo etapas necessárias.
+
+## Biblioteca privada de referências (E1 do preview)
+
+A biblioteca local cadastra tomadas autorizadas com idioma, estilo e transcrição revisável. Preserva o original, gera uma referência WAV e oferece limpeza opcional em cópia. Perfis são reutilizados pela GUI ou por `--perfil-voz`. O cadastro não treina modelos, e seus avisos acústicos não medem fidelidade da clonagem. Consulte [uso, privacidade, backup e limitações](BIBLIOTECA_VOZES.md).
+
+## Projetos e tomadas (E2 do preview)
+
+Projetos guardam roteiro original, configuração, glossário e histórico de tomadas. Correções por segmento não sobrescrevem o texto original. Cada tomada concluída preserva seus segmentos; outra execução pode compartilhar cache sem alterar esse histórico. O player opcional oferece pausa/busca e alternância A/B, limitado a WAV PCM de 16 bits e sujeito à disponibilidade de dispositivo. Consulte [uso, backup e validações pendentes](PROJETOS_REVISAO.md).
+
+## Fila local (E3 do preview)
+
+GUI e API podem compartilhar uma fila persistente, com uma síntese ativa por coordenador. Snapshots capturam roteiro, glossário e referências; o guardião independente supervisiona worker e filhos, aplica prazos e confirma resultados. É possível retomar tarefas por cache verificado após interrupção. A CLI avulsa permanece independente, com proteção contra colisões na saída/cache. A integração não transforma a API em serviço multiusuário ou de produção. Consulte [operação e limites](FILA_TAREFAS.md).

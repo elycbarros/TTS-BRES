@@ -47,6 +47,11 @@ TONS_PREDEFINIDOS: dict[str, dict] = {
 }
 
 
+from contextvars import ContextVar
+
+REFERENCIAS_CONGELADAS = ContextVar("ttsbr_referencias", default={})
+
+
 def eh_caminho_audio(nome: str | None) -> bool:
     """Verifica se uma string possui extensão de arquivo de áudio reconhecida."""
     return bool(nome and nome.strip().lower().endswith(EXTENSOES_AUDIO))
@@ -55,6 +60,11 @@ def eh_caminho_audio(nome: str | None) -> bool:
 def resolver_caminho_voz(caminho_str: str, base_texto: Path | None = None) -> str:
     """Resolve o caminho absoluto de um áudio de referência, considerando o caminho base do texto."""
     candidato = Path(caminho_str.strip()).expanduser()
+    for item in (candidato, base_texto.parent / candidato if base_texto is not None else candidato):
+        congelado = REFERENCIAS_CONGELADAS.get().get(str(item.absolute()))
+        if congelado:
+            if not Path(congelado).is_file(): raise ValueError('Referência do snapshot ausente.')
+            return congelado
     if candidato.is_file():
         return str(candidato.resolve())
     if base_texto is not None and not candidato.is_absolute():

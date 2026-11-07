@@ -2,7 +2,7 @@
 
 [README](../README.md) · [Instalação e GUI](GUI.md) · [Arquitetura](ARQUITETURA.md)
 
-Esta etapa produz um candidato local de estabilização. Não declara a GUI ou o Windows aprovados. A versão de pacote permanece `1.0.0`, já existente no projeto; não foi criada uma release nem uma tag.
+Esta etapa produz um candidato local de estabilização. Não declara a GUI ou o Windows aprovados. Na versão `1.0.1` (07/11/2026), o `pyproject.toml` passou a usar a versão `1.0.1` e inclui todos os módulos e documentos de E0–E6; veja [PREVIEW_0.9.0.md](PREVIEW_0.9.0.md).
 
 ## O que foi executado
 

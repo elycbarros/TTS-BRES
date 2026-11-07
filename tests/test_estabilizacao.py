@@ -35,13 +35,56 @@ class TestCaminhos(unittest.TestCase):
 
     def test_recursos_checkout(self):
         self.assertTrue(caminhos.recurso('docs/GUI.md').is_file())
+        self.assertTrue(caminhos.recurso('exemplos/captacao_voz_pt.txt').is_file())
+        self.assertTrue(caminhos.recurso('exemplos/captacao_voz_es.txt').is_file())
+
+    def test_construcao_limpa_sem_appledouble_e_com_roteiros_captacao(self):
+        import subprocess
+        import tarfile
+        import zipfile
+        from scripts.construir import construir
+        with tempfile.TemporaryDirectory(prefix='ttsbr dist espaço á-') as tmp:
+            saida = Path(tmp) / 'dist'
+            construir(saida)
+            wheels = list(saida.glob('ttsbr-1.0.1-*.whl'))
+            sdists = list(saida.glob('ttsbr-1.0.1.tar.gz'))
+            self.assertEqual(len(wheels), 1)
+            self.assertEqual(len(sdists), 1)
+            with zipfile.ZipFile(wheels[0]) as zf:
+                nomes = zf.namelist()
+            self.assertFalse(any(Path(n).name.startswith('._') for n in nomes))
+            self.assertFalse(any(n.startswith(('local/', 'work/', 'saida/')) for n in nomes))
+            for esperado in ('exemplos/captacao_voz_pt.txt', 'exemplos/captacao_voz_es.txt',
+                             'docs/MOTORES_E4.md', 'comparar_motores_e4.py'):
+                self.assertTrue(any(n.endswith(esperado) for n in nomes), esperado)
+            with tarfile.open(sdists[0], 'r:gz') as tf:
+                nomes_tar = tf.getnames()
+            self.assertFalse(any(Path(n).name.startswith('._') for n in nomes_tar))
+
+            # Instala o wheel fora do checkout em caminho com espaço e acento e exercita 3 comandos
+            alvo_site = Path(tmp) / 'instalação com espaço'
+            alvo_site.mkdir(parents=True, exist_ok=True)
+            with zipfile.ZipFile(wheels[0]) as zf:
+                zf.extractall(alvo_site)
+            dados_home = Path(tmp) / 'dados com acento á'
+            env = {**os.environ, 'PYTHONPATH': str(alvo_site), 'TTSBR_HOME': str(dados_home)}
+            for cmd in (
+                [sys.executable, '-m', 'diagnostico'],
+                [sys.executable, '-m', 'biblioteca_vozes', 'listar'],
+                [sys.executable, '-m', 'tarefas', 'listar'],
+            ):
+                r = subprocess.run(cmd, cwd=tmp, env=env, capture_output=True, text=True, timeout=20)
+                self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertTrue((dados_home / 'local' / 'vozes').is_dir())
+            self.assertTrue((dados_home / 'local' / 'fila').is_dir())
+            self.assertFalse((alvo_site / 'local').exists())
 
 
 class TestAPIHTTP(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
-        self.server = servidor_api.criar_servidor('127.0.0.1', 0, self.tmp.name, 'cpu')
+        self.server = servidor_api.criar_servidor('127.0.0.1', 0, self.tmp.name, 'cpu', usar_fila=False)
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
         self.addCleanup(self.fechar)

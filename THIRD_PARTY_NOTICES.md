@@ -38,3 +38,17 @@ As dependências não estão fixadas por versão. Este documento destaca compone
 ## Gravações de referência e conteúdos de entrada
 
 Os arquivos fornecidos pelo usuário não passam a ser licenciados sob MIT por serem processados pelo TTSBR. O projeto não concede direitos sobre vozes, gravações ou textos de terceiros.
+
+## Reprodução opcional
+
+O extra `reproducao` usa python-sounddevice e seu backend PortAudio. O pacote sounddevice 0.5.6 examinado declara MIT em seus metadados e inclui seu próprio arquivo de licença. Dependências e bibliotecas nativas mantêm seus avisos; este wheel do TTSBR não incorpora esses binários. Consulte os [fontes e licenças do componente](https://github.com/spatialaudio/python-sounddevice) antes de redistribuir um ambiente ou instalador com áudio.
+
+## Experimento OmniVoice (E4, opcional e não distribuído)
+
+O TTSBR não instala nem redistribui o OmniVoice. O experimento usa um ambiente e pesos preparados pelo usuário. Na revisão examinada em 07/11/2026 (`c5fdb5ccb189668d56333f77ba2629f4cd7535f4` de [k2-fsa/OmniVoice](https://huggingface.co/k2-fsa/OmniVoice), pacote `omnivoice` 0.2.1):
+
+- O código do OmniVoice declara **Apache 2.0**.
+- O README dos pesos declara **CC-BY-NC** para o modelo pré-treinado, por restrições dos dados de treino. O uso comercial do modelo e de suas saídas não é concedido por essa licença.
+- O tokenizador de áudio incluído (`audio_tokenizer/`, derivado do Higgs Audio v2) traz a **Boson Higgs Audio 2 Community License**, baseada na licença comunitária do Meta Llama 3, com termos próprios.
+
+Esses termos podem mudar entre revisões. Confira os arquivos de licença da revisão efetivamente baixada. A MIT do TTSBR não amplia essas permissões.

@@ -21,11 +21,19 @@ import unicodedata
 from lexico import (
     ABREVIACOES_ES,
     ABREVIACOES_PT,
+    DENOMINADORES_ES,
+    DENOMINADORES_PTBR,
+    ORDINAIS_ES,
+    ORDINAIS_PTBR,
+    POTENCIAS_ES,
+    POTENCIAS_PTBR,
     SIGLAS_ES,
     SIGLAS_PTBR,
     TERMOS_INGLES_ES,
     TERMOS_INGLES_PTBR,
     UNIDADES_ES,
+    UNIDADES_FEMININAS_ES,
+    UNIDADES_FEMININAS_PTBR,
     UNIDADES_PTBR,
     _CENTENAS,
     _CENTENAS_ES,
@@ -190,21 +198,36 @@ def normalizar_contextos_numericos(texto: str, idioma: str) -> str:
 
     texto = re.sub(r"(?<![\w:])(\d{1,2}):(\d{2})(?::(\d{2}))?(?![\w:])", horario, texto)
 
+    def horario_h(m):
+        h, minuto = int(m[1]), int(m[2])
+        if h > 23 or minuto > 59 or not (1 <= len(m[2]) <= 2):
+            raise ValueError(f"Horário inválido: {m[0]}")
+        partes = [f"{feminino(h)} {'hora' if h == 1 else 'horas'}"]
+        if minuto:
+            t = numero(minuto)
+            if es and t.endswith("veintiuno"):
+                t = t[:-9] + "veintiún"
+            elif es and t.endswith("uno"):
+                t = t[:-3] + "un"
+            partes.append(f"{t} {'minuto' if minuto == 1 else 'minutos'}")
+        return (" y " if es else " e ").join(partes)
+
+    texto = re.sub(r"(?<![\w:])(\d{1,2})h(\d{2})(?:min)?\b", horario_h, texto)
+
     moedas = {
         "brl": (("real", "reais"), ("real brasileño", "reales brasileños")),
         "usd": (("dólar", "dólares"), ("dólar estadounidense", "dólares estadounidenses")),
         "eur": (("euro", "euros"), ("euro", "euros")),
     }
 
-    def dinheiro(m):
-        simbolo, valor = m[1].lower(), m[2]
-        moeda = {"r$": "brl", "us$": "usd", "$": "usd", "€": "eur"}.get(simbolo, simbolo)
+    def _formatar_dinheiro(simbolo, valor, original):
+        moeda = {"r$": "brl", "us$": "usd", "$": "usd", "€": "eur"}.get(simbolo.lower(), simbolo.lower())
         negativo = valor.startswith('-')
         valor = valor.lstrip('-').replace('.', '')
         inteiro, _, fracao = valor.partition(',')
         n, centavos = int(inteiro), int(fracao.ljust(2, '0') or '0')
         if n > 999_999_999_999:
-            raise ValueError(f"Valor monetário fora do limite: {m[0]}")
+            raise ValueError(f"Valor monetário fora do limite: {original}")
 
         def quantidade(n):
             t = numero(n)
@@ -222,12 +245,125 @@ def normalizar_contextos_numericos(texto: str, idioma: str) -> str:
             partes.append(f"{quantidade(centavos)} {nome if centavos == 1 else nome + 's'}")
         return ("menos " if negativo else "") + (" y " if es else " e ").join(partes)
 
+    padrao_valor = r"-?(?:\d{1,3}(?:\.\d{3})+|\d+)(?:,\d{1,2})?"
     texto = re.sub(
-        r"(?<!\w)(R\$|US\$|BRL\b|USD\b|EUR\b|€|\$)\s*(-?(?:\d{1,3}(?:\.\d{3})+|\d+)(?:,\d{1,2})?)(?!\d|,\d|\.\d)",
-        dinheiro, texto, flags=re.IGNORECASE,
+        rf"(?<!\w)(R\$|US\$|BRL\b|USD\b|EUR\b|€|\$)\s*({padrao_valor})(?!\d|,\d|\.\d)",
+        lambda m: _formatar_dinheiro(m[1], m[2], m[0]), texto, flags=re.IGNORECASE,
+    )
+    texto = re.sub(
+        rf"(?<![\w,\.])({padrao_valor})\s*(€|\bEUR\b)(?!\w)",
+        lambda m: _formatar_dinheiro(m[2], m[1], m[0]), texto, flags=re.IGNORECASE,
     )
     # Sinal unário: não converte o hífen de intervalos como 5-10.
     texto = re.sub(r"(?<![\w])-(?=\d)", "menos ", texto)
+    return texto
+
+
+def _ordinal_por_extenso(n: int, genero: str, es: bool) -> str | None:
+    if not 1 <= n <= 99:
+        return None
+    unidades, dezenas = ORDINAIS_ES if es else ORDINAIS_PTBR
+    d, u = divmod(n, 10)
+    partes = [p for p in (dezenas[d], unidades[u]) if p]
+    if genero == "a":
+        partes = [p[:-1] + "a" for p in partes]
+    elif genero == "r" and es:
+        partes = ["primer" if p == "primero" else ("tercer" if p == "tercero" else p) for p in partes]
+    return " ".join(partes)
+
+
+def _normalizar_unidades_medidas_e_intervalos(texto: str, idioma: str) -> str:
+    """Expande temperaturas, unidades com potência, razões, unidades simples, ordinais e intervalos."""
+    es = idioma == "es"
+    unidades = UNIDADES_ES if es else UNIDADES_PTBR
+    femininas = UNIDADES_FEMININAS_ES if es else UNIDADES_FEMININAS_PTBR
+    denominadores = DENOMINADORES_ES if es else DENOMINADORES_PTBR
+    potencias = POTENCIAS_ES if es else POTENCIAS_PTBR
+    converter_dec = _converter_decimal_es if es else _converter_decimal
+    extenso = numero_por_extenso_es if es else numero_por_extenso
+
+    def numero_unidade(int_p: str, dec_p: str | None, codigo: str) -> str:
+        if dec_p:
+            return converter_dec(int_p, dec_p)
+        t = extenso(int(int_p))
+        if codigo in femininas:
+            if es:
+                return t[:-9] + "veintiuna" if t.endswith("veintiuno") else (t[:-3] + "una" if t.endswith("uno") else t)
+            return t[:-4] + "duas" if t.endswith("dois") else (t[:-2] + "uma" if t.endswith("um") else t)
+        if es:
+            return t[:-9] + "veintiún" if t.endswith("veintiuno") else (t[:-3] + "un" if t.endswith("uno") else t)
+        return t
+
+    # Temperaturas: 25 °C, -3,5°C, 70 °F
+    escalas = {"C": "Celsius", "F": "Fahrenheit", "K": "Kelvin"}
+
+    def _sub_temp(m: re.Match) -> str:
+        int_p, dec_p, esc = m.group(1), m.group(2), m.group(3)
+        um = int_p == "1" and not dec_p
+        num_txt = numero_unidade(int_p, dec_p, esc)
+        if esc == "K":
+            un_txt = "kelvin"
+        else:
+            grau = ("grado" if um else "grados") if es else ("grau" if um else "graus")
+            un_txt = f"{grau} {escalas[esc]}"
+        return f"{num_txt} {un_txt}"
+
+    texto = re.sub(r"\b(\d+)(?:[,.](\d+))?\s*°\s*([CFK])\b", _sub_temp, texto)
+
+    unidades_regex = "|".join(sorted(unidades.keys(), key=len, reverse=True))
+    denom_regex = "|".join(sorted(denominadores.keys(), key=len, reverse=True))
+
+    # Unidades compostas: 80 km/h, 12,5 MB/s
+    def _sub_composta(m: re.Match) -> str:
+        int_p, dec_p, num_u, den_u = m.group(1), m.group(2), m.group(3), m.group(4)
+        sing, plur = unidades[num_u]
+        nome_num = sing if (int_p == "1" and not dec_p) else plur
+        return f"{numero_unidade(int_p, dec_p, num_u)} {nome_num} por {denominadores[den_u]}"
+
+    texto = re.sub(rf"\b(\d+)(?:[,.](\d+))?\s*({unidades_regex})/({denom_regex})\b", _sub_composta, texto)
+
+    # Unidades com superíndice: 300 m², 2,5 km³
+    def _sub_potencia(m: re.Match) -> str:
+        int_p, dec_p, un, pot = m.group(1), m.group(2), m.group(3), m.group(4)
+        um = int_p == "1" and not dec_p
+        sing, plur = unidades[un]
+        pot_sing, pot_plur = potencias[pot]
+        return f"{numero_unidade(int_p, dec_p, un)} {sing if um else plur} {pot_sing if um else pot_plur}"
+
+    texto = re.sub(rf"\b(\d+)(?:[,.](\d+))?\s*({unidades_regex})([²³])", _sub_potencia, texto)
+
+    # Unidades simples: 24 kHz, 250ms, 5 kg, 2h
+    def _sub_unidade(m: re.Match) -> str:
+        int_p, dec_p, un = m.group(1), m.group(2), m.group(3)
+        sing, plur = unidades[un]
+        nome_un = sing if (int_p == "1" and not dec_p) else plur
+        return f"{numero_unidade(int_p, dec_p, un)} {nome_un}"
+
+    texto = re.sub(rf"\b(\d+)(?:[,.](\d+))?\s*({unidades_regex})\b", _sub_unidade, texto)
+
+    # Ordinais: 1º, 1.º, 2ª, 2.ª e, em espanhol, 1er/3er
+    def _sub_ordinal(m: re.Match) -> str:
+        ind = m.group(2).lower()
+        genero = "a" if ind in ("ª", "a") else ("r" if ind == "er" else "o")
+        ext = _ordinal_por_extenso(int(m.group(1)), genero, es)
+        return ext if ext is not None else m.group(0)
+
+    padrao_ord = r"\b(\d{1,2})(?:\.\s*([ºªoa]|er)\b|([ºª])|(?<=1|3)(er)\b)" if es else r"\b(\d{1,2})(?:\.\s*([ºªoa])\b|([ºª]))"
+
+    def _sub_ord_match(m: re.Match) -> str:
+        ind = next(g for g in m.groups()[1:] if g is not None).lower()
+        genero = "a" if ind in ("ª", "a") else ("r" if ind == "er" else "o")
+        return _ordinal_por_extenso(int(m.group(1)), genero, es) or m.group(0)
+
+    texto = re.sub(padrao_ord, _sub_ord_match, texto)
+
+    # Intervalos numéricos (10-20, 1990–2000), após datas já terem sido convertidas
+    conector = " a "
+    texto = re.sub(
+        r"(?<![\w/\-])(\d{1,4})\s*[–—-]\s*(\d{1,4})(?![\w/\-])",
+        lambda m: f"{extenso(int(m[1]))}{conector}{extenso(int(m[2]))}",
+        texto,
+    )
     return texto
 
 
@@ -244,18 +380,7 @@ def normalizar_numeros_e_simbolos_pt(texto: str) -> str:
         return f"{num_txt} por cento"
 
     texto = re.sub(r"\b(\d+)(?:[,.](\d+))?\s*%", _sub_pct, texto)
-
-    # Números seguidos de unidades técnicas (ex.: 24kHz, 250ms, 16GB)
-    unidades_regex = "|".join(sorted(UNIDADES_PTBR.keys(), key=len, reverse=True))
-
-    def _sub_unidade(m: re.Match) -> str:
-        int_p, dec_p, un = m.group(1), m.group(2), m.group(3)
-        num_txt = _converter_decimal(int_p, dec_p) if dec_p else numero_por_extenso(int(int_p))
-        sing, plur = UNIDADES_PTBR[un]
-        nome_un = sing if (int_p == "1" and not dec_p) else plur
-        return f"{num_txt} {nome_un}"
-
-    texto = re.sub(rf"\b(\d+)(?:[,.](\d+))?\s*({unidades_regex})\b", _sub_unidade, texto)
+    texto = _normalizar_unidades_medidas_e_intervalos(texto, "pt")
 
     # Decimais restantes (ex.: 3,14 ou 0.01)
     texto = re.sub(
@@ -360,18 +485,7 @@ def normalizar_numeros_e_simbolos_es(texto: str) -> str:
         return f"{num_txt} por ciento"
 
     texto = re.sub(r"\b(\d+)(?:[,.](\d+))?\s*%", _sub_pct, texto)
-
-    # Números seguidos de unidades técnicas (ex.: 24kHz, 250ms, 16GB)
-    unidades_regex = "|".join(sorted(UNIDADES_ES.keys(), key=len, reverse=True))
-
-    def _sub_unidade(m: re.Match) -> str:
-        int_p, dec_p, un = m.group(1), m.group(2), m.group(3)
-        num_txt = _converter_decimal_es(int_p, dec_p) if dec_p else numero_por_extenso_es(int(int_p))
-        sing, plur = UNIDADES_ES[un]
-        nome_un = sing if (int_p == "1" and not dec_p) else plur
-        return f"{num_txt} {nome_un}"
-
-    texto = re.sub(rf"\b(\d+)(?:[,.](\d+))?\s*({unidades_regex})\b", _sub_unidade, texto)
+    texto = _normalizar_unidades_medidas_e_intervalos(texto, "es")
 
     # Decimais restantes (ex.: 3,14 ou 0.01)
     texto = re.sub(

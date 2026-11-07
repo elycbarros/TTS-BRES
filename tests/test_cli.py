@@ -193,6 +193,91 @@ class TestCLI(unittest.TestCase):
                 self.assertEqual(segs[1]['locutor'], 'Xavier Hayasaka')
                 self.assertEqual(segs[1]['idioma'], 'es')
 
+    def test_presets_precedencia_e_restauracao(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            pasta = Path(tmp)
+            entrada = pasta / 'texto.txt'
+            entrada.write_text('Olá mundo.', encoding='utf-8')
+            api = types.ModuleType('TTS.api')
+            api.TTS = MagicMock()
+            modelo = api.TTS.return_value.to.return_value
+            modelo.tts.return_value = np.sin(np.arange(2400) * .1) * .1
+            base = pasta / 'revisao_out'
+            with patch.dict(sys.modules, {'TTS.api': api}), \
+                    patch.object(tts, 'escolher_dispositivo', return_value='cpu'), \
+                    patch.object(tts, 'configurar_ffmpeg'), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                tts.main([str(entrada), '--preset', 'revisao', '--saida', str(base)])
+            manifesto = json.loads((pasta / 'revisao_out.blocos.json').read_text())
+            self.assertEqual(manifesto['configuracao']['preset'], 'revisao')
+            self.assertEqual(manifesto['configuracao']['velocidade'], 1.0)
+            self.assertTrue((pasta / 'revisao_out.wav').is_file())
+            self.assertTrue((pasta / 'revisao_out.srt').is_file())
+
+            # Flag explícita sobrepõe o preset
+            base2 = pasta / 'revisao_custom'
+            with patch.dict(sys.modules, {'TTS.api': api}), \
+                    patch.object(tts, 'escolher_dispositivo', return_value='cpu'), \
+                    patch.object(tts, 'configurar_ffmpeg'), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                tts.main([str(entrada), '--preset', 'revisao', '--velocidade', '1.25',
+                          '--formatos', 'wav', '--saida', str(base2)])
+            m2 = json.loads((pasta / 'revisao_custom.blocos.json').read_text())
+            self.assertEqual(m2['configuracao']['velocidade'], 1.25)
+
+        cfg = {'velocidade': '1.1', 'formatos': 'mp3,wav', 'lufs': ''}
+        cfg_n = tts.aplicar_preset_dict(cfg, 'narracao')
+        self.assertEqual(cfg_n['lufs'], '-16.0')
+        cfg_r = tts.aplicar_preset_dict(cfg_n, '')
+        self.assertEqual(cfg_r['velocidade'], '1.1')
+        self.assertEqual(cfg_r['lufs'], '')
+
+    def test_exportacao_por_capitulo_e_loudness_final(self):
+        api = types.ModuleType('TTS.api')
+        api.TTS = MagicMock()
+        modelo = api.TTS.return_value.to.return_value
+        modelo.tts.return_value = np.sin(np.arange(12000) * .1) * .2
+        with tempfile.TemporaryDirectory() as tmp:
+            pasta = Path(tmp)
+            entrada = pasta / 'livro.txt'
+            entrada.write_text('# Capítulo Um\n\nPrimeira frase.\n\n# Capítulo Dois\n\nSegunda frase.', encoding='utf-8')
+            base = pasta / 'audiolivro'
+            with patch.dict(sys.modules, {'TTS.api': api}), \
+                    patch.object(tts, 'escolher_dispositivo', return_value='cpu'), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                tts.main([str(entrada), '--saida', str(base), '--formatos', 'wav,srt',
+                          '--por-capitulo', '--titulo', 'Obra Teste', '--autor', 'Autor Teste'])
+            manifesto = json.loads((pasta / 'audiolivro.blocos.json').read_text())
+            self.assertIn('metricas_finais', manifesto)
+            self.assertIn('wav', manifesto['metricas_finais'])
+            self.assertGreater(manifesto['metricas_finais']['wav']['duracao_s'], 0)
+            self.assertEqual(len(manifesto['capitulos']), 2)
+            self.assertEqual(manifesto['capitulos'][0]['titulo'], 'Capítulo Um')
+            self.assertEqual(manifesto['capitulos'][1]['titulo'], 'Capítulo Dois')
+            self.assertTrue((pasta / 'audiolivro.cap01.wav').is_file())
+            self.assertTrue((pasta / 'audiolivro.cap02.wav').is_file())
+            self.assertTrue((pasta / 'audiolivro.cap02.srt').is_file())
+            srt_cap2 = (pasta / 'audiolivro.cap02.srt').read_text(encoding='utf-8')
+            self.assertIn('00:00:00,200 -->', srt_cap2)
+
+    def test_corpus_publico_12_casos_por_idioma_sem_tags_pronunciadas(self):
+        corpus = Path(__file__).resolve().parent.parent / 'avaliacao' / 'corpus_pt_es.txt'
+        eventos = []
+        with contextlib.redirect_stdout(io.StringIO()):
+            tts.main([str(corpus), '--saida', 'ignorado', '--analisar'], on_event=eventos.append)
+        segs = eventos[0]['segmentos']
+        pt = [s for s in segs if s['idioma'] == 'pt']
+        es = [s for s in segs if s['idioma'] == 'es']
+        self.assertGreaterEqual(len(pt), 12)
+        self.assertGreaterEqual(len(es), 12)
+        for s in segs:
+            self.assertNotIn('[', s['texto'])
+            self.assertNotIn(']', s['texto'])
+            self.assertNotIn('km/h', s['texto'])
+            self.assertNotIn('MB/s', s['texto'])
+            self.assertNotIn('°C', s['texto'])
+            self.assertNotIn('m²', s['texto'])
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -72,6 +72,7 @@ from segmentador import (
     montar_itens,
     pausa_ms,
     preparar_segmentos,
+    separar_capitulos,
 )
 from vozes import (
     EXTENSOES_AUDIO,
@@ -91,12 +92,60 @@ for _s in (sys.stdout, sys.stderr):
     if hasattr(_s, "reconfigure"):
         _s.reconfigure(encoding="utf-8", errors="replace")
 
+PADROES_SINTESE = {
+    "velocidade": 1.1,
+    "volume_alvo": -20.0,
+    "formatos": "mp3",
+    "lufs": None,
+    "taxa_amostragem": SAMPLE_RATE,
+    "max_tentativas": 2,
+    "pausa_frase": 600,
+    "pausa_reticencias": 850,
+    "pausa_ponto_virgula": 420,
+    "pausa_virgula": 250,
+    "pausa_paragrafo": 1150,
+    "pausa_bloco": 500,
+}
+
+PRESETS: dict[str, dict] = {
+    "narracao": {
+        **PADROES_SINTESE,
+        "formatos": "mp3,wav",
+        "lufs": -16.0,
+    },
+    "amostra": {
+        **PADROES_SINTESE,
+        "formatos": "wav",
+        "max_tentativas": 1,
+        "pausa_frase": 500,
+        "pausa_paragrafo": 900,
+    },
+    "revisao": {
+        **PADROES_SINTESE,
+        "velocidade": 1.0,
+        "formatos": "wav,srt",
+    },
+}
+
+
+def aplicar_preset_dict(destino: dict, nome: str | None) -> dict:
+    """Devolve cópia das configurações da GUI com o preset ou padrões originais aplicados."""
+    base = PRESETS.get((nome or "").strip().lower(), PADROES_SINTESE)
+    out = dict(destino)
+    for k, v in base.items():
+        if k == "lufs":
+            out[k] = "" if v is None else str(v)
+        else:
+            out[k] = str(v)
+    return out
+
 
 class SinteseInterrompida(Exception):
     """Interrupção solicitada entre segmentos, com cache preservado."""
 
 
-def main(argv=None, on_event=None, should_stop=None, modelo_precarregado=None, origem_referencias=None):
+def _main(argv=None, on_event=None, should_stop=None, modelo_precarregado=None, origem_referencias=None,
+         glossario_precarregado=None):
     def emitir(tipo, **dados):
         if on_event is not None:
             on_event({"tipo": tipo, **dados})
@@ -104,23 +153,29 @@ def main(argv=None, on_event=None, should_stop=None, modelo_precarregado=None, o
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
     ap.add_argument("texto", help="arquivo .txt com o texto pronto")
     ap.add_argument("--voz", default=None, help="áudio de referência (wav, 6-30 s) para clonar a voz")
+    ap.add_argument("--perfil-voz", default=None, help="ID da biblioteca privada de vozes; verifica integridade antes de usar")
+    ap.add_argument('--revisao-segmentos', help='Documento de correções vinculado ao plano conferido')
+    ap.add_argument('--cache-segmentos', help='Cache compartilhado entre tomadas do mesmo projeto')
     ap.add_argument(
         "--locutor", default=None,
         help="voz embutida do XTTS (padrão: automático pelo idioma: 'Luis Moray' para PT, 'Alma María' para ES)",
     )
     ap.add_argument("--saida", default="audio", help="nome base (sem extensão)")
-    ap.add_argument(
-        "--idioma", default="auto", choices=["auto", "pt", "es"],
+    ap.add_argument("--idioma", default="auto", choices=["auto", "pt", "es"],
         help="idioma (auto, pt ou es; padrão: auto com detecção no texto)",
     )
-    ap.add_argument("--pausa-frase", type=int, default=600, help="ms após ponto/!/? (padrão: 600)")
-    ap.add_argument("--pausa-reticencias", type=int, default=850, help="ms após reticências (padrão: 850)")
-    ap.add_argument("--pausa-ponto-virgula", type=int, default=420, help="ms após ; ou : (padrão: 420)")
-    ap.add_argument("--pausa-virgula", type=int, default=250, help="ms em corte de frase longa (padrão: 250)")
-    ap.add_argument("--pausa-paragrafo", type=int, default=1150, help="ms entre parágrafos (padrão: 1150)")
-    ap.add_argument("--pausa-bloco", type=int, default=500, help="ms extra entre blocos (padrão: 500)")
-    ap.add_argument("--velocidade", type=float, default=1.1, help="velocidade da fala (1.0 = original; padrão: 1.1; faixa útil 0.8 a 1.3)")
-    ap.add_argument("--volume-alvo", type=float, default=-20.0, help="volume alvo em dBFS (padrão: -20.0; deixa folga para [enfase])")
+    ap.add_argument(
+        "--preset", default=None, choices=list(PRESETS),
+        help="aplica predefinições de parâmetros (narracao, amostra ou revisao); flags explícitas têm precedência",
+    )
+    ap.add_argument("--pausa-frase", type=int, default=None, help="ms após ponto/!/? (padrão: 600)")
+    ap.add_argument("--pausa-reticencias", type=int, default=None, help="ms após reticências (padrão: 850)")
+    ap.add_argument("--pausa-ponto-virgula", type=int, default=None, help="ms após ; ou : (padrão: 420)")
+    ap.add_argument("--pausa-virgula", type=int, default=None, help="ms em corte de frase longa (padrão: 250)")
+    ap.add_argument("--pausa-paragrafo", type=int, default=None, help="ms entre parágrafos (padrão: 1150)")
+    ap.add_argument("--pausa-bloco", type=int, default=None, help="ms extra entre blocos (padrão: 500)")
+    ap.add_argument("--velocidade", type=float, default=None, help="velocidade da fala (1.0 = original; padrão: 1.1; faixa útil 0.8 a 1.3)")
+    ap.add_argument("--volume-alvo", type=float, default=None, help="volume alvo em dBFS (padrão: -20.0; deixa folga para [enfase])")
     ap.add_argument("--glossario", default=None, help="arquivo .json opcional com pronúncias extras")
     ap.add_argument("--sem-normalizar", action="store_true", help="desativa a normalização fonética")
     ap.add_argument("--sem-corte-silencio", action="store_true", help="não remove silêncio residual do XTTS")
@@ -132,13 +187,13 @@ def main(argv=None, on_event=None, should_stop=None, modelo_precarregado=None, o
     ap.add_argument("--wav", action="store_true", help="gera também o arquivo .wav além do .mp3")
     ap.add_argument("--srt", action="store_true", help="gera também o arquivo de legendas .srt")
     ap.add_argument("--vtt", action="store_true", help="gera também o arquivo de legendas .vtt (WebVTT)")
-    ap.add_argument("--formatos", default="mp3", help="formatos de saída (padrão: mp3; aceita mp3,wav,srt,vtt)")
+    ap.add_argument("--formatos", default=None, help="formatos de saída (padrão: mp3; aceita mp3,wav,srt,vtt)")
     ap.add_argument(
         "--lufs", type=float, default=None,
         help="normaliza o loudness final integrado em LUFS via FFmpeg (ex.: -16 para podcasts, -14 para web)",
     )
     ap.add_argument(
-        "--taxa-amostragem", type=int, default=SAMPLE_RATE, choices=[24000, 44100, 48000],
+        "--taxa-amostragem", type=int, default=None, choices=[24000, 44100, 48000],
         help="taxa de amostragem de saída em Hz (padrão: 24000; opções: 24000, 44100, 48000)",
     )
     ap.add_argument(
@@ -162,15 +217,33 @@ def main(argv=None, on_event=None, should_stop=None, modelo_precarregado=None, o
         help="higieniza áudios de referência (remove ruído e padroniza volume via FFmpeg antes da clonagem)",
     )
     ap.add_argument(
-        "--max-tentativas", type=int, default=2,
+        "--max-tentativas", type=int, default=None,
         help="máximo de tentativas por segmento caso seja detectada alucinação/silêncio (padrão: 2)",
     )
+    ap.add_argument(
+        "--por-capitulo", action="store_true",
+        help="exporta também um arquivo por capítulo demarcado por '#' ou '##' (ou por bloco quando não houver cabeçalhos)",
+    )
+    ap.add_argument("--titulo", default=None, help="título para os metadados de áudio (title/album)")
+    ap.add_argument("--autor", default=None, help="autor/narrador para os metadados de áudio (artist)")
     ap.add_argument(
         "--dispositivo", default="auto", choices=["auto", "cpu", "cuda", "mps"],
         help="auto = CUDA se houver, senão CPU (mps é experimental no Mac)",
     )
     ap.add_argument("--analisar", action="store_true", help="confere e mostra o plano sem carregar o XTTS ou gravar saídas")
     args = ap.parse_args(argv)
+    base_preset = PRESETS[args.preset] if args.preset else PADROES_SINTESE
+    for chave, valor_padrao in base_preset.items():
+        if getattr(args, chave) is None:
+            setattr(args, chave, valor_padrao)
+    if args.perfil_voz:
+        if args.voz:
+            ap.error('Use --perfil-voz ou --voz, apenas uma opção por vez.')
+        try:
+            from biblioteca_vozes import BibliotecaVozes
+            args.voz = str(BibliotecaVozes().resolver(args.perfil_voz))
+        except (OSError, ValueError) as exc:
+            ap.error(str(exc))
 
     for nome in ("pausa_frase", "pausa_reticencias", "pausa_ponto_virgula",
                  "pausa_virgula", "pausa_paragrafo", "pausa_bloco"):
@@ -215,7 +288,8 @@ def main(argv=None, on_event=None, should_stop=None, modelo_precarregado=None, o
         texto = caminho_texto.read_text(encoding="utf-8-sig")
         if origem_referencias is not None:
             caminho_texto = Path(origem_referencias).resolve()
-        glossario_extra = carregar_glossario(args.glossario, texto_path=args.texto)
+        glossario_extra = (glossario_precarregado if glossario_precarregado is not None
+                          else carregar_glossario(args.glossario, texto_path=args.texto))
         vozes_personagens = carregar_vozes_personagens(args.vozes_personagens, base_texto=caminho_texto)
         vozes_tons = carregar_vozes_personagens(args.vozes_tons, base_texto=caminho_texto)
     except (OSError, ValueError) as exc:
@@ -245,11 +319,31 @@ def main(argv=None, on_event=None, should_stop=None, modelo_precarregado=None, o
 
     # 3) Divisão em blocos (com detecção por parágrafo quando idioma='auto')
     try:
-        blocos = dividir_em_blocos(
-            montar_itens(texto, normalizar=normalizar, idioma_padrao=idioma_global,
-                         detectar_por_paragrafo=modo_auto),
-            analise["precisa_dividir"],
-        )
+        secoes = separar_capitulos(texto)
+        tem_capitulos = len(secoes) > 1 or secoes[0][0] is not None
+        blocos = []
+        titulos_blocos: list[str | None] = []
+        if tem_capitulos:
+            for titulo_cap, corpo_cap in secoes:
+                itens_cap = montar_itens(corpo_cap, normalizar=normalizar, idioma_padrao=idioma_global,
+                                         detectar_por_paragrafo=modo_auto)
+                if args.por_capitulo:
+                    blocos.append(itens_cap)
+                    titulos_blocos.append(titulo_cap)
+                else:
+                    sub_blocos = dividir_em_blocos(itens_cap, contar_palavras(corpo_cap) > LIMITE_LONGO)
+                    for idx_sb, sb in enumerate(sub_blocos, 1):
+                        blocos.append(sb)
+                        titulos_blocos.append(
+                            titulo_cap if len(sub_blocos) == 1 else f"{titulo_cap} ({idx_sb})"
+                        )
+        else:
+            blocos = dividir_em_blocos(
+                montar_itens(texto, normalizar=normalizar, idioma_padrao=idioma_global,
+                             detectar_por_paragrafo=modo_auto),
+                analise["precisa_dividir"],
+            )
+            titulos_blocos = [None] * len(blocos)
         plano = [
             [(preparar_segmentos(t, lang, normalizar, glossario_extra), fim, lang, locutor)
              for t, fim, lang, locutor in bloco]
@@ -271,6 +365,7 @@ def main(argv=None, on_event=None, should_stop=None, modelo_precarregado=None, o
         "blocos": [
             {
                 "id": i,
+                **({"titulo": titulos_blocos[i - 1]} if titulos_blocos[i - 1] else {}),
                 "palavras": sum(contar_palavras(t) for t, _, _, _ in b),
                 "texto": " ".join(t for t, _, _, _ in b),
                 "texto_falado": " ".join(
@@ -294,6 +389,14 @@ def main(argv=None, on_event=None, should_stop=None, modelo_precarregado=None, o
     ]
     if refazer_ids and any(idx > len(resumo_segmentos) for idx in refazer_ids):
         ap.error(f"--refazer-segmentos contém ID fora do total de segmentos ({len(resumo_segmentos)}).")
+    if args.revisao_segmentos:
+        try:
+            from revisao_segmentos import carregar_revisao
+            resumo_segmentos = carregar_revisao(args.revisao_segmentos, resumo_segmentos)
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            ap.error(str(exc))
+        for bloco in manifesto['blocos']:
+            bloco['texto_falado'] = ' '.join(s['texto'] for s in resumo_segmentos if s['bloco'] == bloco['id'])
     emitir("plano", total=len(resumo_segmentos), segmentos=resumo_segmentos)
     if args.analisar:
         for seg in resumo_segmentos:
@@ -311,8 +414,9 @@ def main(argv=None, on_event=None, should_stop=None, modelo_precarregado=None, o
 
     # O modelo só é carregado quando algum segmento precisa de síntese.
     configurar_ffmpeg()
-    cache = CacheSegmentos(base.parent / f"{base.name}.segmentos")
+    cache = CacheSegmentos(Path(args.cache_segmentos) if args.cache_segmentos else base.parent / f"{base.name}.segmentos")
     eventos = [200]
+    eventos_por_bloco: list[list] = []
     cursor_frames = SAMPLE_RATE // 5
     manifesto["segmentos"] = []
     manifesto["estado"] = "sintetizando"
@@ -348,6 +452,9 @@ def main(argv=None, on_event=None, should_stop=None, modelo_precarregado=None, o
     referencia = obter_hash_ref(args.voz)
     manifesto["configuracao"] = {
         "python": sys.version.split()[0], "versoes": versoes,
+        "motor": "xtts_v2", "modelo": "tts_models/multilingual/multi-dataset/xtts_v2",
+        "preset": args.preset, "por_capitulo": args.por_capitulo,
+        "titulo": args.titulo, "autor": args.autor,
         "dispositivo_solicitado": args.dispositivo, "velocidade": args.velocidade,
         "volume_alvo": args.volume_alvo, "cortar_silencio": not args.sem_corte_silencio,
         "lufs": args.lufs, "taxa_amostragem": args.taxa_amostragem,
@@ -355,7 +462,8 @@ def main(argv=None, on_event=None, should_stop=None, modelo_precarregado=None, o
         "referencia_sha256": referencia,
         "fontes_sha256": {nome: hash_arquivo(Path(__file__).parent / nome)
                           for nome in ("tts.py", "normalizador.py", "audio_persistente.py", "lexico.py",
-                                       "vozes.py", "segmentador.py", "processamento_audio.py", "caminhos.py")},
+                                       "vozes.py", "segmentador.py", "processamento_audio.py", "caminhos.py",
+                                       "revisao_segmentos.py", "exclusao.py")},
     }
     salvar_json(json_path, manifesto)
 
@@ -376,12 +484,11 @@ def main(argv=None, on_event=None, should_stop=None, modelo_precarregado=None, o
             print(f"Dispositivo: {dispositivo}")
             modelo = TTS("tts_models/multilingual/multi-dataset/xtts_v2").to(dispositivo)
         voz_preparada = obter_voz_condicionada(voz_ref)
-        voz = {"speaker_wav": voz_preparada} if voz_preparada else {"speaker": locutor}
         vel = args.velocidade if velocidade is None else velocidade
         melhor_seg = None
         for tentativa in range(1, args.max_tentativas + 1):
-            wav = modelo.tts(text=texto_voz, **voz, language=lang,
-                             split_sentences=False, speed=vel)
+            from motores import MotorXTTS
+            wav = MotorXTTS(modelo).sintetizar(texto_voz, lang, locutor, voz_preparada, vel)
             seg = para_segmento(wav, cortar_silencio=not args.sem_corte_silencio,
                                 volume_alvo_dbfs=volume)
             anomalia = avaliar_anomalia_sintese(seg, texto_voz, vel)
@@ -397,6 +504,8 @@ def main(argv=None, on_event=None, should_stop=None, modelo_precarregado=None, o
 
     for i, bloco in enumerate(plano, 1):
         print(f"--- Bloco {i}/{len(plano)} ---")
+        ev_bloco = [200]
+        eventos_por_bloco.append(ev_bloco)
         for segmentos_tags, fim_par, lang_trecho, locutor_char in bloco:
             locutor_trecho = locutor_char or args.locutor or VOZES_PADRAO.get(lang_trecho, locutor_global)
             voz_personagem = resolver_voz_segmento(locutor_char, vozes_personagens, base_texto=caminho_texto)
@@ -421,6 +530,8 @@ def main(argv=None, on_event=None, should_stop=None, modelo_precarregado=None, o
                 pausa_total = pausa_base + mods.get("pausa_extra_ms", 0)
 
                 if texto_voz:
+                    seg_id = len(manifesto['segmentos']) + 1
+                    texto_voz = resumo_segmentos[seg_id - 1]['texto']
                     voz_tom = resolver_voz_tom(mods, vozes_tons, base_texto=caminho_texto)
                     voz_efetiva = voz_tom or voz_personagem or args.voz
                     ref_efetiva = obter_hash_ref(voz_efetiva)
@@ -440,7 +551,7 @@ def main(argv=None, on_event=None, should_stop=None, modelo_precarregado=None, o
                     print(f"  [{lang_trecho}|{locutor_trecho}{tag_info}] {texto_voz[:55]}")
                     vol_alvo = args.volume_alvo + mods.get("volume_offset_db", 0.0)
                     parametros = {
-                        "pipeline": 1, "modelo": "tts_models/multilingual/multi-dataset/xtts_v2",
+                        "pipeline": 1, "motor": "xtts_v2", "modelo": "tts_models/multilingual/multi-dataset/xtts_v2",
                         "versoes": versoes, "texto": texto_voz, "idioma": lang_trecho,
                         "locutor": None if voz_efetiva else locutor_trecho,
                         "referencia_sha256": ref_efetiva, "velocidade": vel_efetiva,
@@ -460,6 +571,7 @@ def main(argv=None, on_event=None, should_stop=None, modelo_precarregado=None, o
                         refazer=args.refazer or (seg_id in refazer_ids),
                     )
                     eventos.append(caminho)
+                    ev_bloco.append(caminho)
                     manifesto["segmentos"].append({
                         "id": seg_id, "bloco": i,
                         "texto": texto_voz, "idioma": lang_trecho, "locutor": parametros["locutor"],
@@ -467,6 +579,8 @@ def main(argv=None, on_event=None, should_stop=None, modelo_precarregado=None, o
                         "inicio_s": cursor_frames / SAMPLE_RATE,
                         "fim_s": (cursor_frames + frames) / SAMPLE_RATE,
                         "duracao_s": frames / SAMPLE_RATE, "reutilizado": reutilizado,
+                        **({k: resumo_segmentos[seg_id - 1][k] for k in ('id_estavel', 'texto_base')}
+                           if args.revisao_segmentos else {}),
                     })
                     emitir("segmento", segmento=manifesto["segmentos"][-1],
                            concluidos=len(manifesto["segmentos"]), total=len(resumo_segmentos))
@@ -477,6 +591,7 @@ def main(argv=None, on_event=None, should_stop=None, modelo_precarregado=None, o
 
                 if pausa_total > 0:
                     eventos.append(pausa_total)
+                    ev_bloco.append(pausa_total)
                     cursor_frames += SAMPLE_RATE * pausa_total // 1000
         if i < len(blocos):
             eventos.append(args.pausa_bloco)
@@ -486,13 +601,76 @@ def main(argv=None, on_event=None, should_stop=None, modelo_precarregado=None, o
     emitir("etapa", etapa="montagem", mensagem="Montando e exportando o áudio…")
     manifesto["estado"] = "montando"
     salvar_json(json_path, manifesto)
-    exportar(eventos, base, formatos, AudioSegment.converter,
-             segmentos=manifesto["segmentos"], lufs=args.lufs, taxa_amostragem=args.taxa_amostragem,
-             trilha=args.trilha, volume_trilha=args.volume_trilha)
+    titulo_obra = (args.titulo or "").strip() or base.name
+    autor_obra = (args.autor or "").strip() or locutor_global
+    metadados_principais = {"title": titulo_obra, "artist": autor_obra, "album": titulo_obra}
+    metricas_finais = exportar(
+        eventos, base, formatos, AudioSegment.converter,
+        segmentos=manifesto["segmentos"], lufs=args.lufs, taxa_amostragem=args.taxa_amostragem,
+        trilha=args.trilha, volume_trilha=args.volume_trilha, metadados=metadados_principais,
+    )
+    if metricas_finais:
+        manifesto["metricas_finais"] = metricas_finais
+    arquivos_gerados = [str((base.parent / f"{base.name}.{fmt}").resolve()) for fmt in formatos]
+    if args.por_capitulo:
+        capitulos_info = []
+        total_cap = len(eventos_por_bloco)
+        for idx_cap, ev_cap in enumerate(eventos_por_bloco, 1):
+            base_cap = base.parent / f"{base.name}.cap{idx_cap:02d}"
+            titulo_cap = titulos_blocos[idx_cap - 1] or f"Capítulo {idx_cap}"
+            segs_cap = []
+            cursor_cap = SAMPLE_RATE // 5
+            segs_orig = [s for s in manifesto["segmentos"] if s["bloco"] == idx_cap]
+            it_segs = iter(segs_orig)
+            for item_ev in ev_cap[1:]:
+                if isinstance(item_ev, int):
+                    cursor_cap += SAMPLE_RATE * item_ev // 1000
+                else:
+                    s_orig = next(it_segs)
+                    dur_frames = int(round(s_orig["duracao_s"] * SAMPLE_RATE))
+                    segs_cap.append({
+                        **s_orig,
+                        "inicio_s": cursor_cap / SAMPLE_RATE,
+                        "fim_s": (cursor_cap + dur_frames) / SAMPLE_RATE,
+                    })
+                    cursor_cap += dur_frames
+            meta_cap = {
+                "title": titulo_cap,
+                "artist": autor_obra,
+                "album": titulo_obra,
+                "track": f"{idx_cap}/{total_cap}",
+            }
+            metricas_cap = exportar(
+                ev_cap, base_cap, formatos, AudioSegment.converter,
+                segmentos=segs_cap, lufs=args.lufs, taxa_amostragem=args.taxa_amostragem,
+                trilha=args.trilha, volume_trilha=args.volume_trilha, metadados=meta_cap,
+            )
+            arqs_cap = [str((base_cap.parent / f"{base_cap.name}.{fmt}").resolve()) for fmt in formatos]
+            arquivos_gerados.extend(arqs_cap)
+            capitulos_info.append({
+                "id": idx_cap, "titulo": titulo_cap, "arquivos": arqs_cap,
+                "metricas_finais": metricas_cap,
+            })
+        manifesto["capitulos"] = capitulos_info
     manifesto["estado"] = "concluido"
     salvar_json(json_path, manifesto)
-    emitir("resultado", manifesto=str(json_path.resolve()),
-           arquivos=[str((base.parent / f"{base.name}.{fmt}").resolve()) for fmt in formatos])
+    emitir("resultado", manifesto=str(json_path.resolve()), arquivos=arquivos_gerados)
+
+
+def main(argv=None, on_event=None, should_stop=None, modelo_precarregado=None, origem_referencias=None,
+         glossario_precarregado=None):
+    valores = list(sys.argv[1:] if argv is None else argv)
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument('--saida', default='audio')
+    parser.add_argument('--cache-segmentos')
+    args, _ = parser.parse_known_args(valores)
+    from contextlib import nullcontext
+    from exclusao import recursos
+    analisar = '--analisar' in valores or '--help' in valores or '-h' in valores
+    base = Path(args.saida)
+    cache = args.cache_segmentos or str(base.parent / (base.name + '.segmentos'))
+    with nullcontext() if analisar else recursos(base, cache):
+        return _main(argv, on_event, should_stop, modelo_precarregado, origem_referencias, glossario_precarregado)
 
 
 if __name__ == "__main__":

@@ -1,5 +1,55 @@
 # Histórico de alterações
 
+## 1.0.1 — Qualidade, presets e distribuição do preview E0–E6 — 07/11/2026
+
+- Normalizador PT/ES ampliado com unidades compostas (`km/h`, `MB/s`), potências (`m²`, `m³`), temperaturas (`°C`, `°F`, `K`), horários `12h30`, ordinais (`1º`, `2ª`, `1er`, `3er`), intervalos (`10-20`) e `€` posposto. Corpus público expandido para 12 casos por idioma em `avaliacao/corpus_pt_es.txt`.
+- Presets `--preset` (`narracao`, `amostra`, `revisao`) com precedência de flags explícitas e botão de restauração de padrões na GUI.
+- Medição automática do loudness integrado do arquivo final (`lufs_integrado`, `true_peak_dbtp`, `lra_lu` e duração) no manifesto, separada das métricas por segmento.
+- Exportação por capítulo (`--por-capitulo` em cabeçalhos `#`/`##`) e metadados básicos (`--titulo`, `--autor`).
+- Exportação e importação de pacote portátil de projeto (`ttsbr.pacote_projeto` v1) com referência WAV opcional validada por tamanho, extensão, caminho relativo e SHA-256.
+- Distribuição `1.0.1` limpa (`wheel` e `sdist`) sem arquivos AppleDouble, incluindo os roteiros públicos de captação (`captacao_voz_pt.txt` e `captacao_voz_es.txt`), exercitada fora do checkout em caminho com espaços e acentos. **182 testes** aprovados no macOS/Python 3.12.14.
+
+## Motores E4 — em andamento
+
+- Adaptador XTTS com contrato inicial e identificação do motor no manifesto e cache.
+- Worker experimental isolado e supervisor com timeout e proteção de saída; 172 testes aprovados no macOS. O OmniVoice real ainda não foi executado nem integrado.
+- Verificação da revisão dos pesos contra os metadados de download do Hugging Face (commit e ETag de cada arquivo) antes de iniciar o worker.
+- Ambiente OmniVoice 0.2.1 preparado fora do volume exFAT, com API, idiomas `pt`/`es` e taxa de 24 kHz conferidos sem inferência; licenças dos pesos (CC-BY-NC) e do tokenizador (Boson Higgs Audio 2) registradas. 175 testes aprovados; a primeira síntese real ainda aguarda referência autorizada.
+
+## Fila e supervisão E3 — 07/11/2026
+
+- Fila SQLite com snapshots privados, tentativas, estados, retenção de eventos e retomada por cache verificado.
+- Coordenador compartilhado pela GUI/API e guardião independente por tarefa, com limites por etapa e confirmação de encerramento.
+- Interrupção segura, cancelamento forçado, recuperação após queda, recibos de conclusão e travas contra colisão com CLI.
+- Reconciliação de vínculos de voz e proteção contra aplicar resultados de análise sobre um projeto editado em outra sessão.
+- 160 testes aprovados no macOS; GUI desktop, contenção Windows e inferência longa real continuam pendentes.
+
+## Projetos e revisão E2 — 07/11/2026
+
+- Projetos JSON v1 com configurações, glossário congelado, referências, rascunho, backup e controle de revisão entre sessões.
+- IDs estáveis, correções de fala separadas do roteiro, verificação do plano, cache compartilhado e snapshots de tomadas com legendas recalculadas.
+- Player WAV opcional em subprocesso, controles de pausa/busca, comparação A/B e navegação ao início de segmentos.
+- Suíte com 133 testes aprovados; dispositivo de áudio, GUI desktop, clonagem real e Windows ainda sem aprovação nesta entrega.
+
+## Biblioteca de vozes E1 — 07/11/2026
+
+- Biblioteca privada SQLite com tomadas independentes, original preservado, referência WAV e limpeza opcional em cópia.
+- Cadastro e seleção na GUI, importação por worker e CLI `--perfil-voz` com verificação de integridade.
+- Metadados revisáveis, avisos acústicos, remoção lógica/restauração, bloqueio por vínculo e backup verificado.
+- 113 testes aprovados no macOS, incluindo 17 novos da biblioteca com áudio sintético; validação visual, Windows e audição de clonagem continuam pendentes.
+
+## Base E0 do preview — 07/11/2026
+
+- Adicionados diagnóstico público sem modelos e contratos v1 de voz, projeto e tarefa.
+- Documentadas persistência, migração, instalação separada do preview e matriz de validação.
+- Suíte com 96 testes aprovados no macOS; wheel/sdist construídos e diagnóstico instalado exercitado fora do checkout.
+- Esta base ainda não integra biblioteca, projetos ou fila à interface; Windows e audição continuam pendentes.
+
+## Planejamento — 07/11/2026
+
+- Adicionado roadmap 0.9.0 Preview → 1.1.0 com análise do VoiceStudio, entregas, dependências, testes e critérios de promoção.
+- Vinculado o plano ao README e ao roadmap geral e incluído o documento nos recursos do pacote. Nenhuma funcionalidade ou versão de pacote foi alterada nesta etapa.
+
 ## Documentação — 01/11/2026
 
 - Registrados o estado do projeto, as limitações conhecidas e a execução de 86 testes no macOS.

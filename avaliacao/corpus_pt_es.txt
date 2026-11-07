@@ -4,8 +4,44 @@
 
 [Luis|pt]: [enfase] Confira os dados [pausa:800ms] antes de continuar.
 
+[Luis|pt]: Você já conferiu os resultados da 1ª e da 2ª etapa do projeto?
+
+[Luis|pt]: O trem viaja a 80 km/h enquanto a rede transfere 12,5 MB/s em 2h.
+
+[Luis|pt]: O terreno tem 300 m², o reservatório guarda 1 m³ e a máxima chegou a 25 °C.
+
+[Luis|pt]: Entre 1990-2000, o investimento subiu de R$ 1.250,00 para R$ 3.500,50, com meta de 95%.
+
+[Luis|pt]: O Dr. Silva e a Profa. Helena testaram a API na GPU com SQL, como descrito nas páginas 10-20.
+
+[Luis|pt]: Das 10h às 12h30, cada caixa de 5 kg recebeu 250 ml de solução a -3,5 °C.
+
+[Luis|pt]: No 23.º capítulo, o autor pergunta: quem revisará os dados antes das 18:05?
+
+[Luis|pt]: [tom:calmo] Quando uma frase é longa e traz várias observações encadeadas, a leitura precisa manter o fôlego; por isso, respeitamos as vírgulas, os pontos e vírgulas e a cadência natural até o desfecho.
+
+[Luis|pt]: — Bom dia, disse Helena; o relatório de 15 GB já está pronto para revisão.
+
 [Alma|es]: La reunión será el 29/10/2026 a las 10:30.
 
 [Alma|es]: El total es EUR 21,50 y la temperatura bajó a -5 grados.
 
 [Alma|es]: [enfase] Revisa los datos [pausa:800ms] antes de continuar.
+
+[Alma|es]: ¿Ya revisaste los resultados de la 1ª y de la 2ª etapa del proyecto?
+
+[Alma|es]: El tren viaja a 80 km/h mientras la red transfiere 12,5 MB/s en 2 h.
+
+[Alma|es]: El terreno tiene 300 m², el depósito guarda 1 m³ y la máxima llegó a 25 °C.
+
+[Alma|es]: Entre 1990-2000, la inversión subió de 1.250,00 € a 3.500,50 €, con una meta del 95%.
+
+[Alma|es]: El Dr. Martínez y la Profa. Elena probaron la API en la GPU con SQL, según las páginas 10-20.
+
+[Alma|es]: De las 10h a las 12h30, cada caja de 5 kg recibió 250 ml de solución a -3,5 °C.
+
+[Alma|es]: En el 1er capítulo y en el 3er anexo, el autor pregunta: ¿quién revisará los datos antes de las 18:05?
+
+[Alma|es]: [tom:calmo] Cuando una oración es larga y reúne varias observaciones encadenadas, la lectura necesita conservar el ritmo; por eso respetamos las comas, los puntos y comas y la cadencia natural hasta el final.
+
+[Alma|es]: — Buenos días, dijo Elena; el informe de 15 GB ya está listo para revisión.

@@ -30,19 +30,37 @@ def copiar_fontes(destino):
         shutil.copyfile(ROOT / relativo, alvo)
 
 
+def construir(destino):
+    destino = Path(destino).resolve()
+    destino.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix='ttsbr-build-') as tmp:
+        fonte = Path(tmp) / 'fonte'
+        saida_tmp = Path(tmp) / 'saida'
+        saida_tmp.mkdir(parents=True, exist_ok=True)
+        copiar_fontes(fonte)
+        env = os.environ.copy()
+        env['COPYFILE_DISABLE'] = '1'
+        r = subprocess.run([sys.executable, '-c', 'import build.__main__'], capture_output=True)
+        if r.returncode == 0:
+            subprocess.run([sys.executable, '-m', 'build', '--sdist', '--wheel',
+                            '--outdir', str(saida_tmp), str(fonte)], check=True, env=env)
+        else:
+            for etapa in ('build_sdist', 'build_wheel'):
+                subprocess.run(
+                    [sys.executable, '-c', f'import sys, setuptools.build_meta as b; b.{etapa}(sys.argv[1])', str(saida_tmp)],
+                    cwd=str(fonte), check=True, env=env,
+                    stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True,
+                )
+        for artefato in saida_tmp.iterdir():
+            if artefato.is_file() and not artefato.name.startswith('._'):
+                shutil.copyfile(artefato, destino / artefato.name)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--saida', type=Path, default=ROOT / 'dist')
     args = ap.parse_args()
-    destino = args.saida.resolve()
-    destino.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix='ttsbr-build-') as tmp:
-        fonte = Path(tmp) / 'fonte'
-        copiar_fontes(fonte)
-        env = os.environ.copy()
-        env['COPYFILE_DISABLE'] = '1'
-        subprocess.run([sys.executable, '-m', 'build', '--sdist', '--wheel',
-                        '--outdir', str(destino), str(fonte)], check=True, env=env)
+    construir(args.saida)
 
 
 if __name__ == '__main__':

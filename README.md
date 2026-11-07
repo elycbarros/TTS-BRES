@@ -38,6 +38,12 @@ Projeto pessoal de IA generativa aplicada, em fase de estabilização e sem decl
 | Conferir a rodada de estabilização e pendências | [Estabilização](docs/ESTABILIZACAO.md) |
 | Consultar as alterações do projeto | [Histórico de alterações](CHANGELOG.md) |
 | Ver sugestões e próximas melhorias planejadas | [Roadmap do projeto](docs/ROADMAP.md) |
+| Consultar o plano do preview e da próxima versão final | [0.9.0 Preview → 1.1.0](docs/ROADMAP_0.9.0.md) |
+| Diagnosticar o ambiente e consultar os contratos do preview | [Base E0 do preview](docs/PREVIEW_0.9.0.md) |
+| Cadastrar, ouvir e reutilizar referências pessoais | [Biblioteca privada de vozes — E1](docs/BIBLIOTECA_VOZES.md) |
+| Salvar projetos, corrigir falas e comparar tomadas | [Projetos e revisão — E2](docs/PROJETOS_REVISAO.md) |
+| Enfileirar projetos e recuperar execuções | [Fila persistente e supervisão — E3](docs/FILA_TAREFAS.md) |
+| Acompanhar o contrato de motores e a avaliação experimental | [Motores — E4 em andamento](docs/MOTORES_E4.md) |
 
 <details>
 <summary><strong>Explorar a documentação</strong></summary>
@@ -122,7 +128,13 @@ python -m pip install transformers librosa soundfile
 
 ## 🖥️ Interface gráfica local
 
-A GUI oferece editor, configurações, conferência do texto normalizado, amostra de voz, progresso, retomada, revisão e regeneração seletiva de segmentos. Os ajustes avançados incluem LUFS, taxa de amostragem, trilha de fundo, tentativas automáticas e mapeamento de referências por personagem e tom. A reprodução abre o player padrão do sistema.
+O menu **Fila de tarefas…** permite enfileirar projetos, acompanhar estados, interromper, cancelar e retomar execuções. GUI e API compartilham o coordenador local. O trabalho pode continuar em segundo plano após fechar a janela. Veja [fila e supervisão](docs/FILA_TAREFAS.md).
+
+O menu **Projeto** salva e reabre roteiros e configurações, recupera rascunhos e permite comparar tomadas. **Editar fala…** corrige segmentos preparados sem substituir o roteiro original. Veja [projetos e revisão](docs/PROJETOS_REVISAO.md).
+
+A [biblioteca privada de vozes](docs/BIBLIOTECA_VOZES.md) permite importar tomadas autorizadas, editar dados, ouvir referências e selecionar um perfil para a narração.
+
+A GUI oferece editor, configurações, conferência do texto normalizado, amostra de voz, progresso, retomada, revisão e regeneração seletiva de segmentos. Os ajustes avançados incluem LUFS, taxa de amostragem, trilha de fundo, tentativas automáticas e mapeamento de referências por personagem e tom. O player integrado opcional oferece reprodução, pausa e busca de WAV PCM de 16 bits; o player do sistema continua disponível. Consulte [instalação e limites](docs/PROJETOS_REVISAO.md#player-integrado).
 
 ```bash
 python3 gui.py
@@ -564,13 +576,15 @@ O script de comparação usa CPU. A opção `--listar` imprime as vozes disponí
 
 ## 🧪 Testes
 
+Para verificar dependências sem carregar modelos: `python diagnostico.py`. A opção `--dispositivos` sonda Torch em subprocesso. O relatório omite caminhos e identificadores da máquina; veja os [limites do diagnóstico](docs/PREVIEW_0.9.0.md).
+
 Na pasta do projeto, com o ambiente virtual ativado:
 
 ```bash
 python -m unittest discover -s tests -v
 ```
 
-**Última execução da suíte:** em 01/11/2026, os 86 testes passaram em uma cópia do código do commit `cc7a1fb`, no macOS 27.2 (Apple Silicon / arm64), com Python 3.12.14 e ambiente virtual de dependências existente. Comando: `python -m unittest discover -s tests -v`. Os testes de API usam um servidor HTTP local.
+**Última execução da suíte:** em 07/11/2026, os 182 testes passaram na versão `1.0.1` (E0–E6) sobre o commit `01f4702`, em macOS Apple Silicon / arm64, com Python 3.12.14 e ambiente virtual de dependências existente. São 92 testes da base/CLI/normalizador/distribuição, dez de contratos/diagnóstico, 17 da biblioteca de vozes, 21 de projetos/revisão/pacote/reprodução, 27 de fila/supervisão, dois do contrato de motores, quatro do worker experimental e nove do supervisor experimental. Comando: `python -m unittest discover -s tests -v`. Os testes de API usam servidor HTTP local; os testes de supervisão usam processos próprios e precisam permitir sinais a grupos de processos. Consulte as [evidências e limites da E4](docs/MOTORES_E4.md) e do [preview](docs/PREVIEW_0.9.0.md).
 
 O resultado vale para esse código e ambiente; não comprova funcionamento em Windows ou validação visual da GUI. Os testes automatizados usam áudio simulado e não substituem os ensaios com os modelos e a audição descritos em [Estabilização](docs/ESTABILIZACAO.md).
 

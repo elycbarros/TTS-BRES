@@ -49,7 +49,7 @@ Veja a [documentação oficial do Tkinter](https://docs.python.org/3/library/tki
 ## Fluxo de uso
 
 1. **Abrir ou escrever:** carregue um `.txt` em UTF-8 ou escreva na aba Roteiro. Os botões inserem exemplos de pausa, ênfase e personagem na posição do cursor.
-2. **Configurar:** escolha idioma, voz, velocidade, formatos e nome base da saída. Referência de voz é opcional e prevalece sobre vozes embutidas e personagens.
+2. **Configurar:** escolha um **Preset** opcional (`narracao`, `amostra`, `revisao`), idioma, voz, velocidade, formatos e nome base da saída. Referência de voz é opcional e prevalece sobre vozes embutidas e personagens. No menu **Projeto**, além de criar, abrir e salvar projetos locais, é possível **Exportar pacote…** e **Importar pacote…** (JSON portátil, com referência WAV opcional verificada por SHA-256).
 3. **Conferir roteiro:** valide as opções e veja os segmentos normalizados, sem carregar XTTS nem criar os arquivos finais. Um snapshot local é salvo para o worker.
 4. **Gerar amostra:** selecione um trecho ou use o primeiro parágrafo. O limite da amostra é 1.200 caracteres. A saída usa o nome base acrescido de `.amostra`.
 5. **Gerar / retomar:** processe o roteiro completo. A aba de segmentos indica os trechos gerados e os recuperados do cache.
@@ -67,9 +67,11 @@ O glossário automático associado ao arquivo aberto é preservado na preparaç�
 - Máximo de tentativas por trecho (auto-retry contra silêncio/alucinação).
 - Mapeamento de vozes por personagem (`nome=arquivo.wav`) e por tom (`tom=arquivo.wav`, beta).
 - Trilha sonora de fundo (BGM) com *auto-ducking* e volume base em dB *(beta)*.
+- Título e autor/narrador opcionais para metadados do áudio, e opção para exportar um arquivo por capítulo (`# Título`).
 - Glossário adicional em TXT ou JSON.
 - Pausas por frase, reticências, ponto e vírgula/dois-pontos, corte intermediário, parágrafo e bloco.
 - Desativar normalização, preservar silêncio nas bordas, higienizar áudio de referência via FFmpeg *(beta)* e refazer o cache.
+- Botão **Restaurar padrões** para voltar previsivelmente aos parâmetros originais sem perder os caminhos de saída/Python.
 
 A entrada de voz aceita outros nomes embutidos além das sugestões da lista. A validação das opções é feita pelo pipeline existente; erros e mensagens das bibliotecas aparecem na aba Registro.
 
@@ -87,7 +89,7 @@ Ao fechar durante uma tarefa, a GUI pode aguardar a parada entre trechos ou o t�
 
 ## Revisão e reprodução
 
-A reprodução abre o **player padrão do sistema**. Esta versão não possui player embutido, controle de volume de reprodução nem navegação por forma de onda. Se WAV e MP3 estiverem disponíveis, o botão do resultado prefere WAV.
+A E2 acrescenta player WAV opcional com reproduzir, pausar, parar e buscar. O player do sistema continua disponível. Não há controle de volume de reprodução nem forma de onda nesta entrega. Se WAV e MP3 estiverem disponíveis, o botão do resultado prefere WAV.
 
 É possível abrir um manifesto concluído com **Abrir manifesto…**, sem gerar novamente o roteiro. Os arquivos do cache precisam continuar acessíveis. Depois de uma interrupção, gere novamente para retomar antes de validar o manifesto.
 
@@ -114,12 +116,12 @@ Dentro dessa raiz:
 
 Esses arquivos podem conter roteiros e caminhos pessoais. Eles não são criptografados e permanecem no disco; a limpeza é manual, com o aplicativo fechado. O `.gitignore` não impede leitura por outros programas do usuário.
 
-As saídas finais e o cache de fala usam a pasta escolhida. Prefira `saida/` ou outros diretórios privados. As preferências não armazenam o conteúdo do editor, mas os snapshots de execução o armazenam. O histórico de logs exibido na janela é limitado para evitar crescimento contínuo de memória.
+No fluxo avulso, as saídas finais e o cache de fala usam a pasta escolhida. Em projetos, a E2 mantém tomadas e cache em `local/projetos/ID/`. Prefira `saida/` ou outros diretórios privados. As preferências não armazenam o conteúdo do editor, mas os snapshots de execução o armazenam. O histórico de logs exibido na janela é limitado para evitar crescimento contínuo de memória.
 
 ## Limites desta versão
 
 - Não há instaladores `.app`/`.exe`, atualização automática ou ambiente Python embutido.
-- Não há fila de tarefas; a janela executa um trabalho de cada vez.
+- A E3 oferece fila persistente; uma síntese é executada por vez pelo coordenador. O editor acompanha uma tarefa, e o menu de fila permite adicionar outros projetos.
 - A regeneração seletiva de um segmento está disponível pelo botão **Regerar trecho selecionado** na aba de revisão; não há editor visual de forma de onda (DAW).
 - Abrir um manifesto não restaura o roteiro original no editor.
 - Naturalidade e sotaque continuam exigindo audição.
@@ -139,3 +141,15 @@ Cada tarefa abre um novo worker; o modelo não permanece carregado entre tarefas
 A janela não importa Torch nem XTTS. A comunicação usa eventos JSON identificados no stdout do worker, acompanhados dos logs. O worker chama as mesmas funções da CLI, e os widgets são atualizados somente pelo event loop da janela.
 
 Para detalhes sobre legendas por segmento, LUFS em uma passagem e limitações de tentativas automáticas, consulte o [processamento final no README](../README.md#pos-processamento).
+
+## Biblioteca privada de vozes (E1)
+
+O botão **Biblioteca de vozes…** abre o cadastro local de tomadas. A importação usa o Python selecionado para síntese; a prévia abre no player padrão. **Usar na narração** associa o ID do perfil, e a geração verifica a integridade dos arquivos. Editar manualmente o campo de referência desassocia o ID. Consulte [formatos, backup, remoção e limites](BIBLIOTECA_VOZES.md). A validação visual desta janela permanece pendente no desktop.
+
+## Projetos e revisão (E2)
+
+O menu **Projeto** oferece criar, abrir, salvar e comparar tomadas A/B. Confira o roteiro antes de gerar; use **Editar fala…** para uma correção preparada e **Regerar trecho selecionado** para gerar outra tomada. O roteiro original é preservado. O player interno é opcional e requer o extra `reproducao` no Python selecionado. Dê dois cliques numa linha de segmento para ouvir o WAV final a partir daquele tempo. Consulte [fluxo completo, recuperação e limites](PROJETOS_REVISAO.md).
+
+## Fila persistente e supervisão (E3)
+
+As tarefas da janela principal passam pela fila local compartilhada com a API. O menu **Fila de tarefas…** permite adicionar outros projetos salvos, consultar estados, interromper, cancelar ou retomar. Cada envio captura seus arquivos e configurações; editar o projeto depois não muda a tarefa enviada. Ao fechar a janela durante trabalho, escolha entre aguardar interrupção segura e manter a fila em segundo plano. Veja [estados, prazos, recuperação e limites Windows](FILA_TAREFAS.md).

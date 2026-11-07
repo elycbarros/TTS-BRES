@@ -2,11 +2,14 @@
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
 import wave
 from pathlib import Path
+
+from qualidade_audio import medir_segmento
 
 SR = 24000
 CHUNK = 65536
@@ -162,13 +165,67 @@ def gerar_legenda(segmentos, formato='srt'):
     return corpo
 
 
+def medir_loudness_final(caminho, ffmpeg):
+    """Mede nível integrado (LUFS), true peak (dBTP), LRA e duração do arquivo final via FFmpeg."""
+    caminho = Path(caminho)
+    duracao_s = None
+    if caminho.suffix.lower() == '.wav':
+        try:
+            with wave.open(str(caminho), 'rb') as audio:
+                duracao_s = audio.getnframes() / audio.getframerate()
+        except (OSError, wave.Error, EOFError, ZeroDivisionError):
+            pass
+    saida = {'arquivo': str(caminho.resolve()), 'formato': caminho.suffix.lstrip('.').lower(),
+             'tamanho_bytes': caminho.stat().st_size, 'duracao_s': duracao_s,
+             'lufs_integrado': None, 'true_peak_dbtp': None, 'lra_lu': None}
+    if caminho.suffix.lower() == '.wav':
+        try:
+            m = medir_segmento(caminho)
+            saida.update(duracao_s=m['duracao_s'], rms_dbfs=m['rms_dbfs'], pico_dbfs=m['pico_dbfs'],
+                         avisos_pcm=m['avisos'])
+        except (OSError, ValueError, wave.Error):
+            pass
+    if not ffmpeg:
+        return saida
+    try:
+        processo = subprocess.run(
+            [str(ffmpeg), '-nostdin', '-hide_banner', '-i', str(caminho),
+             '-af', 'loudnorm=print_format=json', '-f', 'null', '-'],
+            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, timeout=120,
+        )
+        blocos = re.findall(r'\{\s*"input_i"\s*:.*?\n\}', processo.stderr, flags=re.DOTALL)
+        if blocos:
+            dados = json.loads(blocos[-1])
+            for chave_json, chave_out in (('input_i', 'lufs_integrado'),
+                                          ('input_tp', 'true_peak_dbtp'),
+                                          ('input_lra', 'lra_lu')):
+                try:
+                    val = float(dados.get(chave_json, 'nan'))
+                    if val == val and abs(val) != float('inf'):
+                        saida[chave_out] = round(val, 2)
+                except (TypeError, ValueError):
+                    pass
+        if saida['duracao_s'] is None:
+            m_dur = re.search(r'Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)', processo.stderr)
+            if m_dur:
+                h, mi, s = int(m_dur[1]), int(m_dur[2]), float(m_dur[3])
+                saida['duracao_s'] = round(h * 3600 + mi * 60 + s, 3)
+    except (OSError, subprocess.SubprocessError, ValueError):
+        pass
+    return saida
+
+
 def exportar(eventos, base, formatos, ffmpeg, segmentos=(), lufs=None, taxa_amostragem=None,
-             trilha=None, volume_trilha=-18.0):
+             trilha=None, volume_trilha=-18.0, metadados=None):
     """Monta WAV em disco e substitui cada saída somente após sua conclusão."""
     base = Path(base)
     precisa_audio = any(f in ('wav', 'mp3') for f in formatos)
     sr_alvo = int(taxa_amostragem) if taxa_amostragem is not None else SR
     opcoes_audio = []
+    opcoes_meta = []
+    for k, v in (metadados or {}).items():
+        if v is not None and str(v).strip():
+            opcoes_meta.extend(['-metadata', f'{k}={str(v).strip()}'])
     if trilha:
         pos_mix = f',loudnorm=I={float(lufs)}:TP=-1.5:LRA=11' if lufs is not None else ''
         grafo = (
@@ -187,6 +244,7 @@ def exportar(eventos, base, formatos, ffmpeg, segmentos=(), lufs=None, taxa_amos
         if sr_alvo != SR:
             opcoes_audio.extend(['-ar', str(sr_alvo)])
 
+    metricas_finais = {}
     with tempfile.TemporaryDirectory(dir=base.parent, prefix='.ttsbr-montagem-') as pasta:
         wav = Path(pasta) / 'montagem.wav'
         if precisa_audio:
@@ -196,12 +254,12 @@ def exportar(eventos, base, formatos, ffmpeg, segmentos=(), lufs=None, taxa_amos
             temporario = Path(pasta) / f'final.{formato}'
             if formato in ('srt', 'vtt'):
                 temporario.write_text(gerar_legenda(segmentos, formato), encoding='utf-8')
-            elif formato == 'wav' and not opcoes_audio:
+            elif formato == 'wav' and not opcoes_audio and not opcoes_meta:
                 shutil.copyfile(wav, temporario)
             elif formato == 'wav':
                 processo = subprocess.run(
                     [str(ffmpeg), '-nostdin', '-y', '-hide_banner', '-loglevel', 'error',
-                     '-i', str(wav), *opcoes_audio, '-c:a', 'pcm_s16le', str(temporario)],
+                     '-i', str(wav), *opcoes_audio, *opcoes_meta, '-c:a', 'pcm_s16le', str(temporario)],
                     stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True,
                 )
                 if processo.returncode:
@@ -209,10 +267,13 @@ def exportar(eventos, base, formatos, ffmpeg, segmentos=(), lufs=None, taxa_amos
             else:
                 processo = subprocess.run(
                     [str(ffmpeg), '-nostdin', '-y', '-hide_banner', '-loglevel', 'error',
-                     '-i', str(wav), *opcoes_audio, '-b:a', '192k', str(temporario)],
+                     '-i', str(wav), *opcoes_audio, *opcoes_meta, '-b:a', '192k', str(temporario)],
                     stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True,
                 )
                 if processo.returncode:
                     raise RuntimeError(f'Falha na exportação MP3: {processo.stderr.strip()}')
             os.replace(temporario, destino)
             print(f'Gerado: {destino}')
+            if formato in ('wav', 'mp3'):
+                metricas_finais[formato] = medir_loudness_final(destino, ffmpeg)
+    return metricas_finais

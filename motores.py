@@ -1,0 +1,38 @@
+"""Contrato inicial de motores de síntese. Pesos e dependências são externos."""
+from dataclasses import dataclass
+from typing import Protocol, runtime_checkable
+
+
+@dataclass(frozen=True)
+class Capacidades:
+    idiomas: tuple[str, ...]
+    clonagem: bool
+    transcricao_referencia: bool
+    semente: bool
+    taxa_hz: int
+
+
+@runtime_checkable
+class MotorSintese(Protocol):
+    id: str
+    modelo_id: str
+    capacidades: Capacidades
+
+    def sintetizar(self, texto: str, idioma: str, locutor: str | None,
+                   referencia: str | None, velocidade: float): ...
+
+
+class MotorXTTS:
+    id = 'xtts_v2'
+    modelo_id = 'tts_models/multilingual/multi-dataset/xtts_v2'
+    capacidades = Capacidades(('pt', 'es'), True, False, False, 24000)
+
+    def __init__(self, modelo):
+        self.modelo = modelo
+
+    def sintetizar(self, texto, idioma, locutor, referencia, velocidade):
+        if idioma not in self.capacidades.idiomas:
+            raise ValueError('Idioma não suportado pelo XTTS.')
+        voz = {'speaker_wav': referencia} if referencia else {'speaker': locutor}
+        return self.modelo.tts(text=texto, **voz, language=idioma,
+                               split_sentences=False, speed=velocidade)
