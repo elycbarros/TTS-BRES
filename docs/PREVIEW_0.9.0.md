@@ -2,9 +2,9 @@
 
 [Roadmap completo](ROADMAP_0.9.0.md) · [README](../README.md)
 
-> Este documento registra a E0 e a preparação da distribuição `1.0.1` (E0–E6). As etapas [E1 — Biblioteca de vozes](BIBLIOTECA_VOZES.md), [E2 — Projetos e revisão](PROJETOS_REVISAO.md), [E3 — Fila e supervisão](FILA_TAREFAS.md), [E4 — Contrato de motores](MOTORES_E4.md), E5 (qualidade PT/ES, presets, loudness final e capítulos) e E6 (pacote portátil de projeto, roteiros públicos de captação no pacote e distribuição `1.0.1` limpa) já possuem código e testes automatizados no macOS.
+> Este documento registra a E0 e a preparação da distribuição até a promoção `1.1.0` (E0–E6). As etapas [E1 — Biblioteca de vozes](BIBLIOTECA_VOZES.md), [E2 — Projetos e revisão](PROJETOS_REVISAO.md), [E3 — Fila e supervisão](FILA_TAREFAS.md), [E4 — Contrato de motores](MOTORES_E4.md), E5 (qualidade PT/ES, presets, loudness final e capítulos) e E6 (pacote portátil de projeto, roteiros públicos de captação no pacote e distribuição `1.1.0` limpa) já possuem código e testes automatizados no macOS.
 
-Implementação iniciada em 07/11/2026 sobre `01f470290270636edabae6941ee194428d0ec7f2`. O `pyproject.toml` está identificado como `1.0.1`.
+Implementação iniciada em 07/11/2026 sobre `01f470290270636edabae6941ee194428d0ec7f2`. O `pyproject.toml` está identificado como `1.1.0`.
 
 ## Diagnóstico
 

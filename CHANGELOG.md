@@ -1,5 +1,12 @@
 # Histórico de alterações
 
+## 1.1.0 — Fechamento da E4, fallback Torchaudio/SoundFile e promoção E0–E6 — 07/11/2026
+
+- Ensaio comparativo real XTTS v2 vs. OmniVoice 0.2.1 (`c5fdb5ccb189668d56333f77ba2629f4cd7535f4`) executado em PT-BR e ES (`mps` e `cpu`), com medição de carga fria, síntese quente, RTF, memória RSS, métricas acústicas e WER via Whisper (`0,0%` em ambos os motores).
+- Adicionado fallback automático via `soundfile` em `torchaudio.load` dentro de `motores.py` para manter a clonagem XTTS funcional em ambientes com Torchaudio ≥ 2.9 sem `libtorchcodec` nativo.
+- Decisão arquitetural da E4 registrada em `docs/MOTORES_E4.md`: XTTS v2 mantido como motor oficial integrado (`RTF ~0,56` em MPS contra `~2,30` do OmniVoice) e OmniVoice preservado no worker/supervisor isolado (`comparar_motores_e4.py`).
+- Distribuição promovida para `1.1.0` com **183 testes** aprovados no macOS/Python 3.12.14.
+
 ## 1.0.1 — Qualidade, presets e distribuição do preview E0–E6 — 07/11/2026
 
 - Normalizador PT/ES ampliado com unidades compostas (`km/h`, `MB/s`), potências (`m²`, `m³`), temperaturas (`°C`, `°F`, `K`), horários `12h30`, ordinais (`1º`, `2ª`, `1er`, `3er`), intervalos (`10-20`) e `€` posposto. Corpus público expandido para 12 casos por idioma em `avaliacao/corpus_pt_es.txt`.
@@ -9,12 +16,12 @@
 - Exportação e importação de pacote portátil de projeto (`ttsbr.pacote_projeto` v1) com referência WAV opcional validada por tamanho, extensão, caminho relativo e SHA-256.
 - Distribuição `1.0.1` limpa (`wheel` e `sdist`) sem arquivos AppleDouble, incluindo os roteiros públicos de captação (`captacao_voz_pt.txt` e `captacao_voz_es.txt`), exercitada fora do checkout em caminho com espaços e acentos. **182 testes** aprovados no macOS/Python 3.12.14.
 
-## Motores E4 — em andamento
+## Motores E4 — concluída — 07/11/2026
 
-- Adaptador XTTS com contrato inicial e identificação do motor no manifesto e cache.
-- Worker experimental isolado e supervisor com timeout e proteção de saída; 172 testes aprovados no macOS. O OmniVoice real ainda não foi executado nem integrado.
+- Adaptador XTTS com contrato inicial, fallback `soundfile` para leitura de referências e identificação do motor no manifesto e cache.
+- Worker experimental isolado e supervisor com timeout e proteção de saída.
 - Verificação da revisão dos pesos contra os metadados de download do Hugging Face (commit e ETag de cada arquivo) antes de iniciar o worker.
-- Ambiente OmniVoice 0.2.1 preparado fora do volume exFAT, com API, idiomas `pt`/`es` e taxa de 24 kHz conferidos sem inferência; licenças dos pesos (CC-BY-NC) e do tokenizador (Boson Higgs Audio 2) registradas. 175 testes aprovados; a primeira síntese real ainda aguarda referência autorizada.
+- Ambiente OmniVoice 0.2.1 preparado fora do volume exFAT e exercitado com inferência real em PT-BR e ES (`mps` e `cpu`) ao lado do XTTS v2; licenças dos pesos (CC-BY-NC) e do tokenizador (Boson Higgs Audio 2) registradas.
 
 ## Fila e supervisão E3 — 07/11/2026
 

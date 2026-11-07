@@ -1,6 +1,6 @@
-# Motores de síntese — E4 em andamento
+# Motores de síntese — E4 concluída
 
-O XTTS está representado por um adaptador com contrato de capacidades. O manifesto e os parâmetros do cache registram `motor: xtts_v2` e o identificador do modelo. A adição desse campo invalida as chaves antigas: áudios já gerados não são apagados, mas segmentos anteriores precisarão ser gerados novamente para entrar no novo cache.
+O XTTS está representado por um adaptador com contrato de capacidades (`motores.py`), incluindo fallback via `soundfile` em `torchaudio.load` para ambientes com Torchaudio ≥ 2.9 sem `libtorchcodec` nativo. O manifesto e os parâmetros do cache registram `motor: xtts_v2` e o identificador do modelo. A adição desse campo invalida as chaves antigas: áudios já gerados não são apagados, mas segmentos anteriores precisarão ser gerados novamente para entrar no novo cache.
 
 Em 07/11/2026, 162 testes passaram no macOS/Python 3.12.14, incluindo dois testes novos do contrato e da distinção de chaves. A suíte usa síntese simulada e não comprova qualidade de clonagem nem compatibilidade Windows.
 
@@ -76,3 +76,22 @@ Observações do código upstream que afetam a medição:
 - O `ffmpeg` do sistema não foi encontrado pelo pydub do ambiente. Use referências WAV até isso ser avaliado.
 
 A primeira inferência real ainda depende de uma referência autorizada com transcrição exata. Até lá, nada se conclui sobre qualidade, desempenho ou estabilidade em PT-BR/ES. Em 07/11/2026, **175 testes** passaram no macOS/Python 3.12.14, incluindo três novos de verificação de pesos com downloads simulados.
+
+## Ensaio comparativo real XTTS v2 vs. OmniVoice 0.2.1 — 07/11/2026
+
+Executado em macOS Apple Silicon (arm64), Python 3.12.14, comparando o `MotorXTTS` (`coqui-tts`, Torchaudio 2.11 com fallback `soundfile`) e o worker isolado `omnivoice_experimental.py` (`omnivoice` 0.2.1, revisão verificada `c5fdb5ccb189668d56333f77ba2629f4cd7535f4`), com referências WAV mono 24 kHz e transcrições explícitas:
+
+| Motor / Idioma / Dispositivo | Carga (s) | 1ª síntese (s) | Síntese quente (s) | Duração (s) | RTF quente | Pico RSS (GB) | WER Whisper (`whisper-small`) |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| **XTTS v2** (`pt`, `mps`) | 34,82 | 4,31 | **4,27** | 7,56 | **0,56** | 4,20 | **0,0%** (0/16) |
+| **OmniVoice 0.2.1** (`pt`, `mps`) | 1,07 | 20,48 | 16,80 | 7,30 | 2,30 | 3,80 | **0,0%** (0/16) |
+| **OmniVoice 0.2.1** (`pt`, `cpu`) | 0,52 | 21,44 | 21,67 | 7,34 | 2,95 | 4,20 | **0,0%** (0/16) |
+| **XTTS v2** (`es`, `mps`) | 34,82 | 3,87 | **3,69** | 6,64 | **0,56** | 4,20 | **0,0%** (0/16) |
+| **OmniVoice 0.2.1** (`es`, `mps`) | 0,89 | 16,20 | 15,88 | 6,88 | 2,31 | 2,72 | **0,0%** (0/16) |
+
+### Conclusão técnica e decisão da E4
+
+1. **Inteligibilidade e sinal:** ambos os motores atingiram **0,0% de WER** em português e espanhol no `openai/whisper-small`, sem amostras saturadas (`fracao_amostras_saturadas: 0.0`) e sem avisos acústicos (`RMS` entre `-20,17` e `-21,56 dBFS`).
+2. **Desempenho de síntese contínua (RTF quente):** no Apple Silicon (`mps`), o **XTTS v2 é ~4,1x mais rápido por segundo de áudio gerado** (`RTF 0,56` vs. `2,30–2,31` do OmniVoice), porque o tokenizador de áudio Higgs do OmniVoice não suporta MPS e executa na CPU.
+3. **Requisitos e licenciamento:** o OmniVoice exige transcrição exata da referência (`ref_text`) para não acionar download de ASR, não expõe semente determinística na versão `0.2.1` e combina três regimes de licença (Apache 2.0 no código, CC-BY-NC nos pesos e Boson Higgs Audio 2 Community License no tokenizador).
+4. **Decisão arquitetural:** o **XTTS v2 permanece como motor padrão único integrado à CLI, GUI, API e fila** para a linha `1.1.0`. O OmniVoice permanece disponível e suportado exclusivamente por meio do supervisor isolado (`comparar_motores_e4.py` + `omnivoice_experimental.py`) em ambiente virtual separado.
