@@ -596,9 +596,11 @@ def _main(argv=None, on_event=None, should_stop=None, modelo_precarregado=None, 
                 if pausa_total > 0:
                     eventos.append(pausa_total)
                     ev_bloco.append(pausa_total)
+                    emitir("pausa", duracao_ms=pausa_total)
                     cursor_frames += SAMPLE_RATE * pausa_total // 1000
         if i < len(blocos):
             eventos.append(args.pausa_bloco)
+            emitir("pausa", duracao_ms=args.pausa_bloco)
             cursor_frames += SAMPLE_RATE * args.pausa_bloco // 1000
 
     verificar_interrupcao()
