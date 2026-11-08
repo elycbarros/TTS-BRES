@@ -411,7 +411,7 @@ def _main(argv=None, on_event=None, should_stop=None, modelo_precarregado=None, 
     json_path = base.parent / f"{base.name}.blocos.json"
     try:
         base.parent.mkdir(parents=True, exist_ok=True)
-        salvar_json(json_path, manifesto)
+        salvar_json(json_path, manifesto, sincronizar=False)
     except OSError as exc:
         ap.error(f"Não foi possível gravar o manifesto: {exc}")
     print(f"{len(blocos)} bloco(s). Lista salva em {json_path}")
@@ -424,7 +424,6 @@ def _main(argv=None, on_event=None, should_stop=None, modelo_precarregado=None, 
     cursor_frames = SAMPLE_RATE // 5
     manifesto["segmentos"] = []
     manifesto["estado"] = "sintetizando"
-    salvar_json(json_path, manifesto)
     modelo = modelo_precarregado
     versoes = {}
     for pacote in ("coqui-tts", "torch", "numpy", "pydub"):
@@ -469,7 +468,7 @@ def _main(argv=None, on_event=None, should_stop=None, modelo_precarregado=None, 
                                        "vozes.py", "segmentador.py", "processamento_audio.py", "caminhos.py",
                                        "revisao_segmentos.py", "exclusao.py")},
     }
-    salvar_json(json_path, manifesto)
+    salvar_json(json_path, manifesto, sincronizar=False)
 
     def verificar_interrupcao():
         if should_stop is not None and should_stop():
@@ -478,6 +477,9 @@ def _main(argv=None, on_event=None, should_stop=None, modelo_precarregado=None, 
             emitir("interrompido", concluidos=len(manifesto["segmentos"]),
                    total=len(resumo_segmentos))
             raise SinteseInterrompida("Interrompido entre segmentos; repita a geração para retomar.")
+
+    from caminhos import pasta_dados
+    pasta_latentes = pasta_dados() / "local" / "vozes" / "latentes"
 
     def sintetizar(texto_voz, locutor, lang, volume, voz_ref=None, velocidade=None):
         nonlocal modelo
@@ -488,11 +490,14 @@ def _main(argv=None, on_event=None, should_stop=None, modelo_precarregado=None, 
             print(f"Dispositivo: {dispositivo}")
             modelo = TTS("tts_models/multilingual/multi-dataset/xtts_v2").to(dispositivo)
         voz_preparada = obter_voz_condicionada(voz_ref)
+        hash_preparada = obter_hash_ref(voz_preparada)
         vel = args.velocidade if velocidade is None else velocidade
         melhor_seg = None
         for tentativa in range(1, args.max_tentativas + 1):
             from motores import MotorXTTS
-            wav = MotorXTTS(modelo).sintetizar(texto_voz, lang, locutor, voz_preparada, vel)
+            wav = MotorXTTS(modelo, pasta_cache_latentes=pasta_latentes).sintetizar(
+                texto_voz, lang, locutor, voz_preparada, vel, ref_sha256=hash_preparada
+            )
             seg = para_segmento(wav, cortar_silencio=not args.sem_corte_silencio,
                                 volume_alvo_dbfs=volume)
             anomalia = avaliar_anomalia_sintese(seg, texto_voz, vel)
@@ -589,7 +594,7 @@ def _main(argv=None, on_event=None, should_stop=None, modelo_precarregado=None, 
                     emitir("segmento", segmento=manifesto["segmentos"][-1],
                            concluidos=len(manifesto["segmentos"]), total=len(resumo_segmentos))
                     cursor_frames += frames
-                    salvar_json(json_path, manifesto)
+                    salvar_json(json_path, manifesto, sincronizar=False)
                     if reutilizado:
                         print("    Segmento recuperado do cache.")
 
@@ -607,9 +612,14 @@ def _main(argv=None, on_event=None, should_stop=None, modelo_precarregado=None, 
     emitir("etapa", etapa="montagem", mensagem="Montando e exportando o áudio…")
     manifesto["estado"] = "montando"
     salvar_json(json_path, manifesto)
-    titulo_obra = (args.titulo or "").strip() or base.name
-    autor_obra = (args.autor or "").strip() or locutor_global
-    metadados_principais = {"title": titulo_obra, "artist": autor_obra, "album": titulo_obra}
+    titulo_obra = (args.titulo or "").strip()
+    autor_obra = (args.autor or "").strip()
+    metadados_principais = {}
+    if titulo_obra:
+        metadados_principais["title"] = titulo_obra
+        metadados_principais["album"] = titulo_obra
+    if autor_obra:
+        metadados_principais["artist"] = autor_obra
     capitulos_obra = []
     for idx_b, t_bloco in enumerate(titulos_blocos, 1):
         segs_b = [s for s in manifesto["segmentos"] if s.get("bloco") == idx_b]
@@ -655,8 +665,8 @@ def _main(argv=None, on_event=None, should_stop=None, modelo_precarregado=None, 
                     cursor_cap += dur_frames
             meta_cap = {
                 "title": titulo_cap,
-                "artist": autor_obra,
-                "album": titulo_obra,
+                "artist": autor_obra or locutor_global,
+                "album": titulo_obra or base.name,
                 "track": f"{idx_cap}/{total_cap}",
             }
             metricas_cap = exportar(
@@ -675,6 +685,14 @@ def _main(argv=None, on_event=None, should_stop=None, modelo_precarregado=None, 
     manifesto["estado"] = "concluido"
     salvar_json(json_path, manifesto)
     emitir("resultado", manifesto=str(json_path.resolve()), arquivos=arquivos_gerados)
+    return {"modelo": modelo, "manifesto": manifesto, "arquivos": arquivos_gerados}
+
+
+def carregar_modelo_tts(dispositivo_pedido="auto"):
+    """Instancia o modelo XTTS v2 no dispositivo adequado."""
+    from TTS.api import TTS
+    dispositivo = escolher_dispositivo(dispositivo_pedido)
+    return TTS("tts_models/multilingual/multi-dataset/xtts_v2").to(dispositivo)
 
 
 def main(argv=None, on_event=None, should_stop=None, modelo_precarregado=None, origem_referencias=None,

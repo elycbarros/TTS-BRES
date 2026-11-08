@@ -13,14 +13,28 @@ from qualidade_audio import medir_segmento
 
 SR = 24000
 CHUNK = 65536
+_CACHE_HASH_ARQUIVO: dict[tuple[str, int, int], str] = {}
 
 
 def hash_arquivo(caminho):
+    p = Path(caminho)
+    try:
+        st = p.stat()
+        chave = (str(p.resolve()), st.st_mtime_ns, st.st_size)
+    except OSError:
+        chave = None
+    if chave is not None and chave in _CACHE_HASH_ARQUIVO:
+        return _CACHE_HASH_ARQUIVO[chave]
     h = hashlib.sha256()
-    with open(caminho, 'rb') as arquivo:
+    with open(p, 'rb') as arquivo:
         for dados in iter(lambda: arquivo.read(CHUNK), b''):
             h.update(dados)
-    return h.hexdigest()
+    digest = h.hexdigest()
+    if chave is not None:
+        if len(_CACHE_HASH_ARQUIVO) > 2048:
+            _CACHE_HASH_ARQUIVO.clear()
+        _CACHE_HASH_ARQUIVO[chave] = digest
+    return digest
 
 
 def chave_segmento(parametros):
@@ -28,14 +42,15 @@ def chave_segmento(parametros):
                                      allow_nan=False).encode('utf-8')).hexdigest()
 
 
-def salvar_json(caminho, dados):
+def salvar_json(caminho, dados, sincronizar=True):
     caminho = Path(caminho)
     fd, temporario = tempfile.mkstemp(dir=caminho.parent, prefix='.ttsbr-', suffix='.json')
     try:
         with os.fdopen(fd, 'w', encoding='utf-8') as arquivo:
             json.dump(dados, arquivo, ensure_ascii=False, indent=2)
             arquivo.flush()
-            os.fsync(arquivo.fileno())
+            if sincronizar:
+                os.fsync(arquivo.fileno())
         os.replace(temporario, caminho)
     finally:
         Path(temporario).unlink(missing_ok=True)
@@ -72,9 +87,19 @@ class CacheSegmentos:
         try:
             with segmento.export(temporario, format='wav'):
                 pass
+            digest_wav = hashlib.sha256()
+            with open(temporario, 'rb') as f_wav:
+                for b_chunk in iter(lambda: f_wav.read(CHUNK), b''):
+                    digest_wav.update(b_chunk)
+            sha_wav = digest_wav.hexdigest()
             os.replace(temporario, destino)
+            try:
+                st_dest = destino.stat()
+                _CACHE_HASH_ARQUIVO[(str(destino.resolve()), st_dest.st_mtime_ns, st_dest.st_size)] = sha_wav
+            except OSError:
+                pass
             salvar_json(metadados, {'parametros': parametros, 'frames': frames,
-                                    'sha256': hash_arquivo(destino)})
+                                    'sha256': sha_wav}, sincronizar=False)
         finally:
             Path(temporario).unlink(missing_ok=True)
         return destino, frames, False
@@ -282,6 +307,7 @@ def exportar(eventos, base, formatos, ffmpeg, segmentos=(), lufs=None, taxa_amos
 
     capa_valida = Path(capa).resolve() if capa and Path(capa).is_file() else None
 
+    loudness_cache = None
     metricas_finais = {}
     with tempfile.TemporaryDirectory(dir=base.parent, prefix='.ttsbr-montagem-') as pasta:
         wav = Path(pasta) / 'montagem.wav'
@@ -357,5 +383,19 @@ def exportar(eventos, base, formatos, ffmpeg, segmentos=(), lufs=None, taxa_amos
             os.replace(temporario, destino)
             print(f'Gerado: {destino}')
             if formato in ('wav', 'mp3', 'm4b'):
-                metricas_finais[formato] = medir_loudness_final(destino, ffmpeg)
+                if loudness_cache is None:
+                    medicao = medir_loudness_final(destino, ffmpeg)
+                    loudness_cache = {
+                        'duracao_s': medicao.get('duracao_s'),
+                        'lufs_integrado': medicao.get('lufs_integrado'),
+                        'true_peak_dbtp': medicao.get('true_peak_dbtp'),
+                        'lra_lu': medicao.get('lra_lu'),
+                    }
+                    metricas_finais[formato] = medicao
+                else:
+                    medicao = medir_loudness_final(destino, None)
+                    for k_lufs in ('duracao_s', 'lufs_integrado', 'true_peak_dbtp', 'lra_lu'):
+                        if medicao.get(k_lufs) is None:
+                            medicao[k_lufs] = loudness_cache.get(k_lufs)
+                    metricas_finais[formato] = medicao
     return metricas_finais
