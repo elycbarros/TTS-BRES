@@ -95,6 +95,7 @@ if TKINTER_DISPONIVEL:
                 "limpar_referencia": False,
                 "por_capitulo": False,
                 "refazer": False,
+                "worker_quente": True,
             }
             self.config_base = dict(defaults)
             try:
@@ -413,9 +414,11 @@ if TKINTER_DISPONIVEL:
                 ("limpar_referencia", "Higienizar áudio de referência via FFmpeg"),
                 ("por_capitulo", "Exportar também um arquivo por capítulo (# Título)"),
                 ("refazer", "Refazer segmentos, ignorando o cache"),
+                ("worker_quente", "Manter modelo na memória (Worker quente para gerações rápidas)"),
             ):
                 ttk.Checkbutton(frame, text=titulo, variable=self.vars[nome]).pack(anchor="w", pady=4)
 
+            ttk.Button(frame, text="Liberar memória do modelo agora", command=self._descarregar_worker).pack(fill="x", pady=(6, 0))
             ttk.Button(frame, text="Restaurar padrões", command=self._restaurar_padroes).pack(fill="x", pady=(10, 0))
             ttk.Button(frame, text="Concluir", command=top.destroy).pack(fill="x", pady=(8, 0))
             top.bind("<Destroy>", lambda e: self._limpar_widgets() if e.widget == top else None)
@@ -433,6 +436,22 @@ if TKINTER_DISPONIVEL:
                 if k not in ("python", "saida", "voz", "perfil_voz"):
                     self.vars[k].set(val)
             self.status.set("Parâmetros restaurados para os padrões originais.")
+
+        def _descarregar_worker(self) -> None:
+            try:
+                if self.processo and getattr(self.processo, "fila", None):
+                    coord = self.processo.fila.coordenador
+                    if coord is not None and coord.poll() is None:
+                        coord.terminate()
+                        try:
+                            coord.wait(timeout=2)
+                        except Exception:
+                            pass
+                from worker_quente import descarregar_modelo_tts
+                descarregar_modelo_tts()
+                self.status.set("Memória do modelo XTTS v2 liberada.")
+            except Exception as exc:
+                self.status.set(f"Aviso ao liberar memória: {exc}")
 
         def _limpar_widgets(self) -> None:
             self.editaveis = [(w, s) for w, s in self.editaveis if w.winfo_exists()]
@@ -866,6 +885,7 @@ if TKINTER_DISPONIVEL:
                     cfg["saida"] += ".amostra"
                 pedido = salvar_pedido(modo, texto, cfg, self.origem, self.manifesto)
                 self._preferencias_salvar()
+                self.processo.quente = bool(self.vars.get("worker_quente", tk.BooleanVar(value=True)).get())
                 self.processo.iniciar(str(Path(self.vars["python"].get().strip()).expanduser()), pedido)
             except (OSError, ValueError, RuntimeError) as exc:
                 self._erro(str(exc))

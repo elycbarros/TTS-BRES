@@ -342,7 +342,12 @@ class Fila:
                 db.execute('DELETE FROM eventos WHERE tarefa_id=?', (identidade,))
                 db.execute('DELETE FROM tarefas WHERE id=?', (identidade,))
 
-    def rodar(self, ocioso=2, worker=None):
+    def rodar(self, ocioso=2, worker=None, quente=False):
+        if quente:
+            from worker_quente import WorkerQuente
+            timeout = ocioso if ocioso is not None else 300
+            wq = WorkerQuente(raiz_fila=self.raiz, ocioso=timeout)
+            return wq.rodar_loop(timeout_ocioso=timeout)
         from supervisor import despachar
         limite_inicio = time.monotonic() + 1
         while True:
@@ -378,9 +383,16 @@ class Fila:
                 time.sleep(.05)
         finally: coordenador.fechar()
 
-    def iniciar_coordenador(self):
+    def iniciar_coordenador(self, *args, quente=False, ocioso=None, **kwargs):
         if self.coordenador is not None and self.coordenador.poll() is None: return self.coordenador
-        self.coordenador = subprocess.Popen([sys.executable, '-u', str(Path(__file__)), '--raiz', str(self.raiz), 'rodar'],
+        modo_quente = quente or getattr(self, 'quente', False) or kwargs.get('quente', False)
+        cmd = [sys.executable, '-u', str(Path(__file__)), '--raiz', str(self.raiz), 'rodar']
+        if modo_quente:
+            cmd.append('--quente')
+            cmd.extend(['--ocioso', str(300 if ocioso is None else ocioso)])
+        elif ocioso is not None:
+            cmd.extend(['--ocioso', str(ocioso)])
+        self.coordenador = subprocess.Popen(cmd,
                                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                                 cwd=str(self.raiz), start_new_session=(os.name != 'nt'),
                                 creationflags=(subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP) if os.name == 'nt' else 0)
@@ -390,8 +402,9 @@ class Fila:
 
 class ClienteFila:
     """Adapter da GUI: eventos da tarefa selecionada; trabalho não depende da janela."""
-    def __init__(self, fila=None):
+    def __init__(self, fila=None, quente=True):
         self.fila = fila or Fila()
+        self.quente = quente
         self.eventos = queue.Queue()
         self.identidade = None
 
@@ -402,7 +415,12 @@ class ClienteFila:
     def iniciar(self, python, pedido):
         if self.ativo: raise RuntimeError('Já existe uma tarefa associada à janela.')
         self.identidade = self.fila.enfileirar(python, pedido)
-        self.fila.iniciar_coordenador()
+        if self.quente:
+            self.fila.quente = True
+        try:
+            self.fila.iniciar_coordenador(quente=self.quente)
+        except TypeError:
+            self.fila.iniciar_coordenador()
         identidade = self.identidade
         def acompanhar():
             cursor = 0
@@ -421,6 +439,11 @@ class ClienteFila:
                         self.eventos.put({'tipo': 'processo_encerrado', 'codigo': 0 if tarefa['estado'] in ('concluida','interrompida') else 1})
                         break
                     if tarefa['estado'] == 'aguardando' and time.monotonic() - ultima_inicio > 1:
+                        try:
+                            self.fila.iniciar_coordenador(quente=self.quente)
+                        except TypeError:
+                            self.fila.iniciar_coordenador()
+                        ultima_inicio = time.monotonic()
                         self.fila.iniciar_coordenador(); ultima_inicio = time.monotonic()
                     time.sleep(.1)
                 except Exception as exc:
@@ -439,7 +462,10 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--raiz', type=Path)
     sub = parser.add_subparsers(dest='acao', required=True)
-    sub.add_parser('listar'); sub.add_parser('rodar')
+    sub.add_parser('listar')
+    cmd_rodar = sub.add_parser('rodar')
+    cmd_rodar.add_argument('--quente', action='store_true', help='Modo worker persistente/quente')
+    cmd_rodar.add_argument('--ocioso', type=float, default=None, help='Segundos de espera ociosa antes de encerrar')
     adicionar = sub.add_parser('adicionar'); adicionar.add_argument('pedido'); adicionar.add_argument('--python', default=sys.executable)
     for acao in ('interromper', 'cancelar', 'retomar'):
         comando = sub.add_parser(acao); comando.add_argument('id')
@@ -447,7 +473,10 @@ def main(argv=None):
     try:
         fila = Fila(args.raiz)
         if args.acao == 'listar': print(json.dumps(fila.listar(), ensure_ascii=False, indent=2))
-        elif args.acao == 'rodar': fila.rodar()
+        elif args.acao == 'rodar':
+            padrao_ocioso = 300 if getattr(args, 'quente', False) else 2
+            tempo_ocioso = args.ocioso if getattr(args, 'ocioso', None) is not None else padrao_ocioso
+            fila.rodar(ocioso=tempo_ocioso, quente=getattr(args, 'quente', False))
         elif args.acao == 'adicionar':
             identidade = fila.enfileirar(args.python, args.pedido)
             fila.iniciar_coordenador(); print(identidade)

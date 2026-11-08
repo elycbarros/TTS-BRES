@@ -20,7 +20,7 @@ def emitir(evento):
         sys.stdout = open(os.devnull, 'w')
 
 
-def _executar(caminho):
+def _executar(caminho, modelo_precarregado=None):
     caminho = Path(caminho)
     pedido = json.loads(caminho.read_text(encoding='utf-8'))
     modo = pedido['modo']
@@ -56,9 +56,10 @@ def _executar(caminho):
     g_path.write_text(json.dumps(glossario, ensure_ascii=False), encoding='utf-8')
     cfg['glossario'] = str(g_path)
     try:
-        main(argumentos_sintese(pedido), on_event=emitir, origem_referencias=pedido.get('origem'),
-             glossario_precarregado=glossario,
-             should_stop=lambda: (caminho.parent / 'interromper.flag').exists())
+        resultado_sintese = main(argumentos_sintese(pedido), on_event=emitir, origem_referencias=pedido.get('origem'),
+                                 glossario_precarregado=glossario,
+                                 modelo_precarregado=modelo_precarregado,
+                                 should_stop=lambda: (caminho.parent / 'interromper.flag').exists())
         if cfg.get('_projeto') and modo == 'gerar':
             emitir({'tipo': 'etapa', 'etapa': 'registro', 'mensagem': 'Preservando a tomada no projeto…'})
             from projetos import Projeto
@@ -70,11 +71,12 @@ def _executar(caminho):
                        proveniencia={'tarefa_id': os.environ.get('TTSBR_FILA_ID'),
                          'revisao_origem': snapshot.get('dados', {}).get('configuracao', {}).get('_estudio', {}).get('revisao')})
             emitir({'tipo': 'tomada_registrada', 'id': registro['id']})
+        return resultado_sintese
     except SinteseInterrompida:
         return
 
 
-def executar(caminho):
+def executar(caminho, modelo_precarregado=None):
     from contextlib import nullcontext
     from exclusao import recursos
     from vozes import REFERENCIAS_CONGELADAS
@@ -85,7 +87,7 @@ def executar(caminho):
     cache = cfg.get('cache_segmentos') or str(base.parent / (base.name + '.segmentos'))
     try:
         with recursos(base, cache) if pedido['modo'] in ('gerar', 'amostra') else nullcontext():
-            return _executar(caminho)
+            return _executar(caminho, modelo_precarregado=modelo_precarregado)
     finally:
         REFERENCIAS_CONGELADAS.reset(token)
 

@@ -104,6 +104,21 @@ class MotorAPI:
         self.lock = threading.Lock()
         self.usar_fila = usar_fila
         self.fila = fila
+        self.modelo_precarregado = None
+
+    def obter_modelo(self):
+        """Retorna o modelo XTTS v2 mantido em memória, instanciando-o uma única vez."""
+        if self.modelo_precarregado is None:
+            from worker_quente import carregar_modelo_tts
+            self.modelo_precarregado, _ = carregar_modelo_tts(self.dispositivo)
+        return self.modelo_precarregado
+
+    def descarregar_modelo(self):
+        """Libera a memória do modelo mantido pelo servidor."""
+        if self.modelo_precarregado is not None:
+            self.modelo_precarregado = None
+            from worker_quente import descarregar_modelo_tts
+            descarregar_modelo_tts()
 
     def sintetizar(self, dados: dict) -> tuple[bytes, str]:
         if not isinstance(dados, dict):
@@ -148,13 +163,21 @@ class MotorAPI:
             with tempfile.TemporaryDirectory(dir=self.pasta_cache) as tmp:
                 pedido = salvar_pedido('gerar', texto, cfg, pasta=tmp)
                 identidade = self.fila.enfileirar(sys.executable, pedido)
-            self.fila.iniciar_coordenador()
+            self.fila.quente = True
+            try:
+                self.fila.iniciar_coordenador(quente=True)
+            except TypeError:
+                self.fila.iniciar_coordenador()
             ultimo_inicio = time.monotonic()
             while True:
                 tarefa = self.fila.obter(identidade)
                 if tarefa['estado'] in TERMINAIS: break
                 if tarefa['estado'] == 'aguardando' and time.monotonic() - ultimo_inicio > 1:
-                    self.fila.iniciar_coordenador(); ultimo_inicio = time.monotonic()
+                    try:
+                        self.fila.iniciar_coordenador(quente=True)
+                    except TypeError:
+                        self.fila.iniciar_coordenador()
+                    ultimo_inicio = time.monotonic()
                 time.sleep(.1)
             if tarefa['estado'] != 'concluida':
                 raise RuntimeError(tarefa['erro'] or 'Tarefa não concluída: ' + tarefa['estado'])
@@ -190,7 +213,15 @@ class MotorAPI:
             erro_log = io.StringIO()
             try:
                 with contextlib.redirect_stdout(saida_log), contextlib.redirect_stderr(erro_log):
-                    tts.main(argv)
+                    try:
+                        if self.modelo_precarregado is not None:
+                            res = tts.main(argv, modelo_precarregado=self.modelo_precarregado)
+                        else:
+                            res = tts.main(argv)
+                    except TypeError:
+                        res = tts.main(argv)
+                    if isinstance(res, dict) and res.get("modelo") is not None:
+                        self.modelo_precarregado = res["modelo"]
             except SystemExit as exc:
                 detalhe = erro_log.getvalue().strip() or saida_log.getvalue().strip() or f"Erro na síntese (código {exc.code})"
                 raise ValueError(detalhe) from exc
@@ -286,7 +317,16 @@ class MotorAPI:
                     erro_log = io.StringIO()
                     try:
                         with contextlib.redirect_stdout(saida_log), contextlib.redirect_stderr(erro_log):
-                            tts.main(argv, on_event=on_event, should_stop=interromper.is_set)
+                            try:
+                                if self.modelo_precarregado is not None:
+                                    res = tts.main(argv, on_event=on_event, should_stop=interromper.is_set,
+                                                   modelo_precarregado=self.modelo_precarregado)
+                                else:
+                                    res = tts.main(argv, on_event=on_event, should_stop=interromper.is_set)
+                            except TypeError:
+                                res = tts.main(argv, on_event=on_event, should_stop=interromper.is_set)
+                            if isinstance(res, dict) and res.get("modelo") is not None:
+                                self.modelo_precarregado = res["modelo"]
                     except tts.SinteseInterrompida:
                         pass
                     except SystemExit as exc:
@@ -469,9 +509,14 @@ def main(argv=None):
     ap.add_argument("--porta", type=int, default=8000, help="porta HTTP (padrão: 8000)")
     ap.add_argument("--pasta-cache", default=None, help="pasta de cache para os segmentos da API")
     ap.add_argument("--dispositivo", default="auto", choices=["auto", "cpu", "cuda", "mps"])
+    ap.add_argument("--aquecer", action="store_true", help="pré-carrega o modelo XTTS v2 no início para resposta imediata")
     args = ap.parse_args(argv)
 
     servidor = criar_servidor(args.host, args.porta, args.pasta_cache, args.dispositivo)
+    if args.aquecer:
+        print("[Servidor API] Aquecendo modelo XTTS v2 na memória…", flush=True)
+        from worker_quente import carregar_modelo_tts
+        carregar_modelo_tts(args.dispositivo)
     host, porta = servidor.server_address
     print(f"Servidor TTSBR (compatível com OpenAI) ativo em http://{host}:{porta}/v1/audio/speech")
     try:
